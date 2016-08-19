@@ -1,0 +1,23 @@
+let
+    type Lista={item:int, resto:Lista}
+    function Largo(l:Lista):int =
+        if l <> nil then 1+largo(l.resto) else 0
+
+    function Largo1(l:Lista):int =
+        let var v:=0
+        in while l <> nil do 
+        (
+            v:=v+1;
+            l:=l.resto
+        );
+        v
+        end
+    
+    function Cons(i:int, l:Lista):Lista =
+        Lista{item=i, resto=l}
+   
+in
+    print(chr(Largo(Lista{item=1, resto=Lista{item=2, resto=nil}})+ord("A"))); 
+    print(chr(Largo1(Lista{item=1, resto=Lista{item=2, resto=nil}})+ord("A")));
+    0
+end
