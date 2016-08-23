@@ -5,6 +5,7 @@ import System.Console.GetOpt
 import Control.Monad
 import Data.Maybe
 import Data.Either
+import Control.Exception
 
 import TigerAbs
 import TigerParser
@@ -14,79 +15,80 @@ import TigerSeman
 
 import Text.Parsec (runParser)
 
+-- Opciones de compilacion
 data Options = Options {
-        optArbol :: Bool,
-        optDebEscap :: Bool
+        optAST :: Bool,
+        optEsc :: Bool
     } deriving Show
 
 
 defaultOptions :: Options
-defaultOptions = Options {optArbol = False, optDebEscap = False }
-
+defaultOptions = Options {optAST = False, optEsc = False }
 
 options :: [OptDescr (Options -> Options)]
-options = [ Option ['a'] ["arbol"] (NoArg (\opts -> opts {optArbol = True})) "Muestra el AST luego de haber realizado el cálculo de escapes"
-            , Option ['e'] ["escapada"] (NoArg (\opts -> opts {optDebEscap = True})) "Stepper escapadas"]
+options = [ Option ['a'] ["ast"]    (NoArg (\opts -> opts {optAST = True})) "show AST after escape analysis",
+            Option ['e'] ["escape"] (NoArg (\opts -> opts {optEsc = True})) "show escape analysis step by step"]
 
-compilerOptions :: [String] -> IO (Options, [String])
-compilerOptions argv = case getOpt Permute options argv of
-                        (o,n,[]) -> return (foldl (flip id) defaultOptions o, n)
-                        (_,_,errs) -> ioError (userError (concat errs ++ usageInfo header options))
-    where
-        header = "Se usa: tiger fileName [OPTIONS] "
+-- Parseo de argumentos de linea de comando
+parseCommand :: [String] -> Either String (Options, String)
+parseCommand argv = 
+    case getOpt Permute options argv of
+        (opt, [file], [])  -> Right (foldl (flip id) defaultOptions opt, file)
+        (_, [], _)         -> Left  "No input file specified"
+        (_, (_:_:_), _)    -> Left  "Too many input files"
+        (_, _, errs@(_:_)) -> Left  (concat errs) 
 
 
 showExp :: Exp -> IO ()
-showExp e = do
-    putStrLn "Mostramos el AST (PP Gracias a Emilio Lopez Junior)"
-    putStrLn $ renderExp e
+showExp = putStrLn . renderExp
 
-
-calculoEscapadas :: Exp -> Options -> IO (Maybe Exp)
+calculoEscapadas :: Exp -> Options -> IO (Either Errores Exp)
 calculoEscapadas rawAST opt = 
-                if (optDebEscap opt) then
+                if (optEsc opt) then
                     case (debbugEnv rawAST) of
-                    (Left errEsc) -> do
-                        putStrLn "Error en el calculo de variables escapadas:"
-                        print errEsc
-                        return Nothing
+                    (Left errEsc) -> return $ Left errEsc
                     (Right (exp,envs)) -> do
-                        putStrLn "Stepper MODE!!! Bienvenidos a la fiesta de las variables escapadas"
+                        putStrLn "**** stepper mode begin ****"
                         mapM_ ((\str -> putStrLn str >> putStrLn "-------") . show) (reverse (e envs))
-                        putStrLn "yes!!!"
-                        return (Just exp)
+                        putStrLn "**** stepper mode end ****"
+                        return (Right exp)
                 else
                     case (calcularEEsc rawAST) of
-                        (Left errEsc) -> do
-                            putStrLn "Error en el calculo de variables escapadas:"
-                            print errEsc 
-                            return Nothing
+                        (Left errEsc) -> return $ Left errEsc
                         (Right escap) -> do
-                            when (optArbol opt) (showExp escap)
-                            (putStrLn "yes!!!")
-                            return $ Just escap
+                        when (optAST opt) (showExp escap)
+                        return $ Right escap
 
-isLeft :: Either a b -> Bool
-isLeft (Left _) = True
-isLeft _ = False
 
-getLeft :: Either a b -> a
-getLeft (Left x) = x
-getLeft _ = error "no hay izq"
+fromLeft :: Either a b -> a
+fromLeft (Left x) = x
+fromLeft _ = error "called fromLeft with Right value"
 
-getRight :: Either a b -> b
-getRight (Right x) = x
-getRight _ = error "no hay derecho"
+fromRight :: Either a b -> b
+fromRight (Right x) = x
+fromRight _ = error "called fromRight with Left value"
 
-main = do
-    s:opts <- Env.getArgs
-    (opts', err) <- compilerOptions opts
-    sourceCode <- readFile s
-    let rawEAST = runParser expression () s sourceCode
-    putStrLn (show rawEAST)
-    when (isLeft rawEAST) (error $ "Parser error..." ++ show (getLeft rawEAST))
-    east <- calculoEscapadas (getRight rawEAST) opts'
-    when (isNothing east) (error $ "Calculo escapadas")
+printException :: SomeException -> IO ()
+printException e = putStrLn $ "tiger: " ++ show e
+
+main = handle printException $ do
+    -- Parseo de argumentos de linea de comandos
+    argv <- Env.getArgs
+    let parsedArgv = parseCommand argv
+    when (isLeft parsedArgv) (error $ fromLeft parsedArgv)
+    let (opts, file) = fromRight parsedArgv
+    sourceCode <- readFile file
+    
+    -- Parseo del archivo fuente
+    let rawEAST = runParser expression () file sourceCode
+    when (isLeft rawEAST) (error $ "error parsing " ++ show (fromLeft rawEAST))
+    
+    -- Calculo de variables escapadas
+    east <- calculoEscapadas (fromRight rawEAST) opts
+    when (isLeft east) (error $ "escape analysis error: \n\t" ++ show (fromLeft east))
+    
+    -- Analisis semantico
 --    let semantico = runLion $ fromJust east 
---    when (isLeft semantico) (error $ "Semantic core:"++ show (getLeft semantico))
-    print "Genial!"
+--    when (isLeft semantico) (error $ "Semantic core:"++ show (fromLeft semantico))
+    
+    putStrLn "finished"
