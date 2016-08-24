@@ -1,6 +1,6 @@
 let
     type Lista={item:int, resto:Lista}
-    function Largo(l:Lista):int =
+/*    function Largo(l:Lista):int =
         if l <> nil then 1+largo(l.resto) else 0
 
     function Largo1(l:Lista):int =
@@ -12,7 +12,7 @@ let
         );
         v
         end
-    
+*/    
     function Cons(i:int, l:Lista):Lista =
         Lista{item=i, resto=l}
    

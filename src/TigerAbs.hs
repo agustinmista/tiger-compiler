@@ -49,7 +49,7 @@ data Ty = NameTy Symbol | RecordTy [Field] | ArrayTy Symbol
     deriving Show
 
 data Oper = PlusOp | MinusOp | TimesOp | DivideOp
-	| EqOp | NeqOp | LtOp | LeOp | GtOp | GeOp
-    deriving Show
+          | EqOp | NeqOp | LtOp | LeOp | GtOp | GeOp
+        deriving Show
 
 type Field = (Symbol, Maybe Bool, Ty)

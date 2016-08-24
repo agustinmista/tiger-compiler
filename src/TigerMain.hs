@@ -21,15 +21,17 @@ data Options = Options {
         optEsc :: Bool
     } deriving Show
 
-
+-- Opciones de compilación por defecto
 defaultOptions :: Options
 defaultOptions = Options {optAST = False, optEsc = False }
 
+-- Descriptor de opciones de compilacion
 options :: [OptDescr (Options -> Options)]
 options = [ Option ['a'] ["ast"]    (NoArg (\opts -> opts {optAST = True})) "show AST after escape analysis",
             Option ['e'] ["escape"] (NoArg (\opts -> opts {optEsc = True})) "show escape analysis step by step"]
 
--- Parseo de argumentos de linea de comando
+-- Parsea los argumentos de linea de comando, devuelve un mensaje de error
+-- o una tupla con las opciones de compilacion y el archivo fuente
 parseCommand :: [String] -> Either String (Options, String)
 parseCommand argv = 
     case getOpt Permute options argv of
@@ -39,9 +41,8 @@ parseCommand argv =
         (_, _, errs@(_:_)) -> Left  (concat errs) 
 
 
-showExp :: Exp -> IO ()
-showExp = putStrLn . renderExp
 
+-- Calculo de variables escapadas
 calculoEscapadas :: Exp -> Options -> IO (Either Errores Exp)
 calculoEscapadas rawAST opt = 
                 if (optEsc opt) then
@@ -56,10 +57,11 @@ calculoEscapadas rawAST opt =
                     case (calcularEEsc rawAST) of
                         (Left errEsc) -> return $ Left errEsc
                         (Right escap) -> do
-                        when (optAST opt) (showExp escap)
+                        when (optAST opt) (putStrLn (show escap) >> putStrLn (renderExp escap))
                         return $ Right escap
 
 
+-- Helpers para desempaquetar either
 fromLeft :: Either a b -> a
 fromLeft (Left x) = x
 fromLeft _ = error "called fromLeft with Right value"
@@ -68,9 +70,15 @@ fromRight :: Either a b -> b
 fromRight (Right x) = x
 fromRight _ = error "called fromRight with Left value"
 
+
+-- Handler para excepciones
 printException :: SomeException -> IO ()
 printException e = putStrLn $ "tiger: " ++ show e
 
+
+---------------------------------------------
+--                  MAIN                   --
+---------------------------------------------
 main = handle printException $ do
     -- Parseo de argumentos de linea de comandos
     argv <- Env.getArgs

@@ -22,14 +22,12 @@ prettyTy = text . show
 prettyField = text . show
 
 prettyDec (FunctionDec f) = vcat $ map functionDec f
-	where
-		functionDec (s, f, Just r, e, _) = hang (text "function " <> (text $ unpack s) <> (parens $ prettyField f) <> text " : " <> (text $ unpack r) <> (text " = ")) tabWidth (prettyExp e)
-		functionDec (s, f, Nothing, e, _) = hang (text "function " <> (text $ unpack s) <> (parens $ prettyField f) <> (text " = ")) tabWidth (prettyExp e)
+    where   functionDec (s, f, Just r, e, _) = hang (text "function " <> (text $ unpack s) <> (parens $ prettyField f) <> text " : " <> (text $ unpack r) <> (text " = ")) tabWidth (prettyExp e)  
+            functionDec (s, f, Nothing, e, _) = hang (text "function " <> (text $ unpack s) <> (parens $ prettyField f) <> (text " = ")) tabWidth (prettyExp e)
 prettyDec (VarDec s _ (Just r) e _) = (text $ unpack s) <> text " : " <> (text $ unpack r) <> text " = " <> prettyExp e
 prettyDec (VarDec s _ Nothing e _) = (text $ unpack s) <> text " = " <> prettyExp e
 prettyDec (TypeDec f) = vcat $ map typeDec f
-	where
-		typeDec (s, ty, _) = text "type " <> (text $ unpack s) <> text " = " <> prettyTy ty
+    where typeDec (s, ty, _) = text "type " <> (text $ unpack s) <> text " = " <> prettyTy ty
 
 prettyExp (VarExp v _) = prettyVar v
 prettyExp (UnitExp _) = text "()"
