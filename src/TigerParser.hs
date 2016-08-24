@@ -36,11 +36,11 @@ table ln = [
             ,binary "-" MinusOp Ex.AssocLeft ln]
             ,
             [binary "=" EqOp Ex.AssocNone ln
+            ,binary "<>" NeqOp Ex.AssocNone ln
             ,binary "<" LeOp Ex.AssocNone ln
             ,binary ">" GtOp Ex.AssocNone ln
             ,binary "<=" LeOp Ex.AssocNone ln
-            ,binary ">=" GeOp Ex.AssocNone ln
-            ,binary "<>" NeqOp Ex.AssocNone ln]
+            ,binary ">=" GeOp Ex.AssocNone ln]
             ,[amperCmp ln]
             ,[pipeCmp ln]
         ]
@@ -241,12 +241,13 @@ seqexp = do
     p <- gline
     es <- parens $ semiSep1 expression
     return (SeqExp es p)
-
+{-
 seqexpWOut :: Parser Exp
 seqexpWOut = do
     p <- gline
-    es <- semiSep1 expression
+    es <- semiSep1 parseexp
     return (SeqExp es p)
+-}
 
 recfld :: Parser (Symbol, Exp)
 recfld = do
@@ -262,9 +263,6 @@ recordexp = do
     fls <- braces $ commaSep1 recfld
     return (RecordExp fls (pack tname) p)
 
--- opexp :: Parser Exp
--- opexp =  do
-    -- p <- gline
 callexp :: Parser Exp
 callexp = do
     p <- gline
@@ -302,18 +300,9 @@ expression' =
         <|> try nilexp
         <|> varexp
         <|> int
-        <|> seqexp
-
-parseOp :: Parser Exp
-parseOp = chainl1 expression' addOp
-
-addOp :: Parser (Exp -> Exp -> Exp)
-addOp = do
-    g <- gline
-    reservedOp "+"
-    return (\e1 e2 -> OpExp e1 PlusOp e2 g)
+        <|> seqexp 
 
 parseexp :: Parser Exp
 parseexp = do
     p <- gline
-    Ex.buildExpressionParser (table p) expression'
+    try $ Ex.buildExpressionParser (table p) expression'

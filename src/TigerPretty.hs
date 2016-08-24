@@ -36,7 +36,7 @@ prettyExp (IntExp i _) = text $ show i
 prettyExp (StringExp s _) = doubleQuotes $ text s
 prettyExp (CallExp s args _) = text (unpack s) <> (parens $ hcat $ punctuate comma $ map prettyExp args)
 prettyExp (OpExp e1 op e2 _) = prettyExp e1 <> prettyOp op <> prettyExp e2
-prettyExp (RecordExp r n _) = undefined
+prettyExp (RecordExp r n _) = text (unpack n) <> text "{"  <> (foldr (\(s,e) acc -> text (unpack s) <+> text "=" <+> prettyExp e <> text "," <+> acc) empty r) <> text "}" 
 prettyExp (SeqExp e _) = parens $ vcat $ punctuate semi (map prettyExp e)
 prettyExp (AssignExp v e _) = prettyVar v <> text " = " <> prettyExp e
 prettyExp (IfExp e e1 (Just e2) _) = (hang (text "if " <> prettyExp e <> text " then ") tabWidth (prettyExp e1)) $$ text "else " <> prettyExp e2

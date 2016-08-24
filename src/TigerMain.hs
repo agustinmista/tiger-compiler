@@ -57,7 +57,7 @@ calculoEscapadas rawAST opt =
                     case (calcularEEsc rawAST) of
                         (Left errEsc) -> return $ Left errEsc
                         (Right escap) -> do
-                        when (optAST opt) (putStrLn (show escap) >> putStrLn (renderExp escap))
+                        when (optAST opt) (putStrLn (show escap) >> putStrLn "\n" >> putStrLn (renderExp escap))
                         return $ Right escap
 
 
@@ -70,6 +70,8 @@ fromRight :: Either a b -> b
 fromRight (Right x) = x
 fromRight _ = error "called fromRight with Left value"
 
+isLeft (Left x) = True
+isLeft _        = False
 
 -- Handler para excepciones
 printException :: SomeException -> IO ()

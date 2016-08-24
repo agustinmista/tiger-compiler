@@ -1,4 +1,4 @@
-(print ("Hola"));
-(print ("chau"));
-0
+(print ("Hola");
+ print ("chau");
+ 0)
 

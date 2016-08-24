@@ -19,6 +19,7 @@ import Control.Monad.Except
 
 -- Debugging
 import Debug.Trace
+-- trace :: String -> a -> a
 
 data Errores =  NotFound T.Text
                 | Interno T.Text 
@@ -201,6 +202,12 @@ instance Escapator Simpler where -- No error
     printEnv = do
         (S l env) <- get
         return (trace ("Entorno(" ++ show l ++")" ++ show env ++ "*****\n") ())
+
+-- do 
+-- a 
+-- b
+-- a >>= \t -> b t
+
 
 travVar :: (Escapator m) => Var -> m Var
 travVar (SimpleVar s) = do
