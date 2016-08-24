@@ -3,4 +3,4 @@
 *.o
 
 #ignore tiger binary
-tiger
+TigerMain
