@@ -1,5 +1,9 @@
 let
     type Lista={item:int, resto:Lista}
+   
+    function Cons(i:int, l:Lista):Lista =  
+        Lista{item=i, resto=l}
+
     function Largo(l:Lista):int =
         if l <> nil then 1+largo(l.resto) else 0
 
@@ -13,9 +17,62 @@ let
         v
         end
     
-    function Cons(i:int, l:Lista):Lista =
-        Lista{item=i, resto=l}
-   
+    function Concat(l1:Lista, l2:Lista):Lista=
+        let
+            var r:Lista := nil
+        in if l1 = nil
+           then r = l2
+           else if l2 = nil
+                then r = l1
+                else (r.item = l1.item;
+                      r.resto = Concat(l1.resto, l2));
+           r
+        end
+    
+    function Snoc(i:int, l:Lista):Lista=
+        Concat(l,Lista{item=i, resto=nil})
+
+    function Filtra(n:int, l:Lista):Lista=
+        if l = nil
+        then l
+        else if l.item = n
+             then Filtra(n,l.resto)
+             else Lista{item=l.item, resto=Filtra(n, l.resto)}
+
+    function Isin(x:int, l:Lista):int=
+       if l = nil
+       then 0
+       else if l.item = x
+            then 1
+            else Isin(x,l.resto)
+
+    function Remove(x:int, xs:Lista):Lista=
+        if Isin(x,xs) = 0
+        then xs
+        else if xs.item = x
+             then xs.resto
+             else Lista{item=xs.item, resto=Remove(x,xs)}
+
+    function RemoveAll(x:int, xs:Lista):Lista=
+        if Isin(x,xs) = 0
+        then xs
+        else Filtra(x,xs)
+
+    function Reverse(l:Lista):Lista=
+        if l = nil
+        then l
+        else Snoc(l.item, Reverse(l.resto))
+
+    funcion ListToStr(l:Lista):string=
+        if l = nil
+        then ""
+        else if l.resto = nil
+             then chr(l.item)
+             else concat(concat(chr(l.item)," "),ListToStr(l.resto))
+ 
+    function PrintList(l:Lista):()
+        print ListToStr(l)
+ 
 in
     print(chr(Largo(Lista{item=1, resto=Lista{item=2, resto=nil}})+ord("A"))); 
     print(chr(Largo1(Lista{item=1, resto=Lista{item=2, resto=nil}})+ord("A")));
