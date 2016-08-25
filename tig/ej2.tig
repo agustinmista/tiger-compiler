@@ -63,15 +63,15 @@ let
         then l
         else Snoc(l.item, Reverse(l.resto))
 
-    funcion ListToStr(l:Lista):string=
+    function ListToStr(l:Lista):string=
         if l = nil
         then ""
         else if l.resto = nil
              then chr(l.item)
              else concat(concat(chr(l.item)," "),ListToStr(l.resto))
  
-    function PrintList(l:Lista):()
-        print ListToStr(l)
+    function PrintList(l:Lista):=
+        print(ListToStr(l))
  
 in
     print(chr(Largo(Lista{item=1, resto=Lista{item=2, resto=nil}})+ord("A"))); 

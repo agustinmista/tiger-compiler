@@ -1,0 +1,58 @@
+let
+   type tree = {key:int, children:treelist}
+   type treelist = {hd:tree, tl:treelist}
+
+   function Len(l:treelist):int=
+       if l = nil
+       then 0
+       else 1+Len(l.tl)
+
+   function IsBin(t:tree):int =
+       if t = nil
+           then 1
+         else if Len(t.children) = 0
+           then 1
+         else if Len(t.children) = 1
+           then IsBin(t.children.hd)
+         else if Len(t.children) = 2
+           then IsBin(t.children.hd) & IsBin(t.children.tl.hd)
+         else 0
+
+    function IsBComplete(t:tree):int =
+        if t = nil
+           then 1
+        else if Len(t.children) = 0
+            then 1
+        else if Len(t.children) = 2
+            then IsBComplete(t.children.hd) & IsBComplete(t.children.tl.hd)
+            else 0
+
+    function GPrintChildren(l:treelist):string=
+       if l = nil
+          then ""
+          else concat(InTreeToStr(l.hd), IntPrintChildren(l.tl))
+
+    function GTreeToStr(t:tree):string=
+        if t = nil
+          then ""
+          else concat(chr(t.key), InPrintChildren(t.children))
+
+    function GPrintPreOrder(t:tree):=
+       print(GTreeToStr(t))
+
+    function InTreeToStr(t:tree):string=
+       if t = nil
+       then ""
+       else if Len(t.children) = 0 
+               then chr(t.key)
+               else if Len(t.children) = 1
+                      then concat(InTreeToStr(t.children.hd), chr(t.key))
+                      else concat(InTreeToStr(t.children.hd), concat(chr(t.key), InTreeToStr(t.children, InTreeToStr(t.children.tl.hd))))
+       
+    function PrintInOrder(t:tree):=
+        if IsBin(t)
+        then print(InTreeToStr(t))
+
+in
+   0
+end
