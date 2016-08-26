@@ -13,7 +13,7 @@ endif
 syn keyword tigerLanguageKeywords type array of var function let in end if then else while do for to break nil
 
 " Operators
-" syn keyword tigOpers '&' '|' '<' '>' '<=' '>=' 
+syn keyword tigOpers '&' '|' '<' '>' '<=' '>=' 
 
 " Types
 syn keyword tigType int string
