@@ -1,0 +1,5 @@
+let type int_arr = array of int
+    var  vector := int_arr[10] of 0
+in 
+    if 2 >= 3 then 4 else 5
+end

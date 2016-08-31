@@ -61,7 +61,7 @@ calculoEscapadas rawAST opt =
                         return $ Right escap
 
 
--- Helpers para desempaquetar either
+-- Helpers para desempaquetar either (descomentar si se usa GHC viejo, por ahora)
 fromLeft :: Either a b -> a
 fromLeft (Left x) = x
 fromLeft _ = error "called fromLeft with Right value"
@@ -70,8 +70,8 @@ fromRight :: Either a b -> b
 fromRight (Right x) = x
 fromRight _ = error "called fromRight with Left value"
 
-isLeft (Left x) = True
-isLeft _        = False
+--isLeft (Left x) = True
+--isLeft _        = False
 
 -- Handler para excepciones
 printException :: SomeException -> IO ()
