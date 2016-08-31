@@ -166,7 +166,14 @@ transExp (UnitExp {}) = return TUnit
 transExp (NilExp {}) = return TNil
 transExp (IntExp {}) = return $ TInt RW
 transExp (StringExp {}) = return TString
-transExp (CallExp nm args p) = return TUnit -- Completar
+--transExp (CallExp nm args p) = return TUnit -- Completar
+transExp (CallExp nm args p) = do 
+				(_,_,ts,tr,_) <-getTipoFunV nm
+				ts' <- mapM transExp  args
+				lparestipos <- zipWithM tiposIguales ts' ts
+				if (and lparestipos)  then return tr
+					               else errorTT p "No coinciden tipos, argumento erroneo"   
+							  
 transExp (OpExp el' oper er' p) = do -- Esta va gratis
         el <- transExp el'
         er <- transExp er'
