@@ -19,25 +19,24 @@ import Control.Monad.Except
 
 -- Debugging
 import Debug.Trace
--- trace :: String -> a -> a
 
-data Errores =  NotFound T.Text
-                | Interno T.Text 
+data Errores = NotFound T.Text
+             | Interno T.Text 
 
 instance Show Errores where
-    show (NotFound e) = "No se encuentra la variable "++ show e
-    show (Interno e) = "Error interno " ++ show e
+    show (NotFound e) = "can't find var " ++ show e
+    show (Interno e)  = "internal error:  " ++ show e
     
 eappend (NotFound e) e1 = NotFound (T.append e e1)
 eappend (Interno e) e1 = Interno (T.append e e1)
 
 type Depth = Int
-type Dat = (Int , Maybe Bool)
+type Dat = (Int, Maybe Bool)
 type Env = M.Map Symbol Dat
-data Estado = S { lvl :: Int, env :: Env}
+data Estado = S { lvl :: Int, env :: Env }
     deriving Show
 
-data SEstado = Step { l :: Int, e :: [Env]}
+data SEstado = Step { l :: Int, e :: [Env] }
     deriving Show
 
 class (Environmental m, NotFounder m) => Escapator m where
@@ -48,7 +47,6 @@ class (Environmental m, NotFounder m) => Escapator m where
     -- Env operators
     setEnv :: Mapper m Symbol Dat -> m ()
     getEnv :: m (Mapper m Symbol Dat)
-    -- 
     -- Funciones cpor default, o de debugging
     -- debugging
     printEnv :: m () --
@@ -134,7 +132,6 @@ instance Deamon Completor where
 instance NotFounder Completor where
     notfound = E . NotFound
 
-
 instance Environmental Completor where
     data Mapper Completor a b = M (M.Map a b)
     emptyI = M M.empty
@@ -163,7 +160,7 @@ instance Escapator Completor where
         (S l env) <- get
         return (trace ("Entorno(" ++ show l ++")" ++ show env ++ "*****\n") ())
 
-type Simpler= ST.State Estado -- Sin manejo de Errores...
+type Simpler = ST.State Estado -- Sin manejo de Errores...
 
 instance Deamon Simpler where
     data Error Simpler = Erpes T.Text 
@@ -203,11 +200,6 @@ instance Escapator Simpler where -- No error
         (S l env) <- get
         return (trace ("Entorno(" ++ show l ++")" ++ show env ++ "*****\n") ())
 
--- do 
--- a 
--- b
--- a >>= \t -> b t
-
 
 travVar :: (Escapator m) => Var -> m Var
 travVar (SimpleVar s) = do
@@ -238,8 +230,8 @@ travExp (OpExp l op r p) = do
     return (OpExp l' op r' p)
 travExp (RecordExp es s p) = do
     es' <- mapM (\(s,e) -> do
-                                e' <- travExp e
-                                return (s,e')) es
+             e' <- travExp e
+             return (s,e')) es
     return (RecordExp es' s p)
 travExp (SeqExp es p) = do
     es' <- mapM travExp es

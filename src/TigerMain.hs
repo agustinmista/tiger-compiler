@@ -4,7 +4,7 @@ import System.Exit
 import System.Console.GetOpt
 import Control.Monad
 import Data.Maybe
-import Data.Either
+import Data.Either hiding (isLeft)
 import Control.Exception
 
 import TigerAbs
@@ -61,7 +61,7 @@ calculoEscapadas rawAST opt =
                         return $ Right escap
 
 
--- Helpers para desempaquetar either (descomentar si se usa GHC viejo, por ahora)
+-- Helpers para desempaquetar either
 fromLeft :: Either a b -> a
 fromLeft (Left x) = x
 fromLeft _ = error "called fromLeft with Right value"
@@ -70,8 +70,10 @@ fromRight :: Either a b -> b
 fromRight (Right x) = x
 fromRight _ = error "called fromRight with Left value"
 
---isLeft (Left x) = True
---isLeft _        = False
+-- override de Data.Either.isLeft 
+-- no presente en la version de GHC del labdcc
+isLeft (Left x) = True
+isLeft _        = False
 
 -- Handler para excepciones
 printException :: SomeException -> IO ()
