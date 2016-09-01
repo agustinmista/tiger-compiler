@@ -166,13 +166,13 @@ transExp (UnitExp {}) = return TUnit
 transExp (NilExp {}) = return TNil
 transExp (IntExp {}) = return $ TInt RW
 transExp (StringExp {}) = return TString
---transExp (CallExp nm args p) = return TUnit -- Completar
 transExp (CallExp nm args p) = do 
-				(_,_,ts,tr,_) <-getTipoFunV nm
-				ts' <- mapM transExp  args
-				lparestipos <- zipWithM tiposIguales ts' ts
-				if (and lparestipos)  then return tr
-					               else errorTT p "No coinciden tipos, argumento erroneo"   
+		(_,_,ts,tr,_) <-getTipoFunV nm
+		ts' <- mapM transExp  args
+		lparestipos <- zipWithM tiposIguales ts' ts
+		if (and lparestipos)  
+				then return tr
+				else errorTT p "No coinciden tipos, argumento erroneo"   
 							  
 transExp (OpExp el' oper er' p) = do -- Esta va gratis
         el <- transExp el'
@@ -209,7 +209,24 @@ transExp (OpExp el' oper er' p) = do -- Esta va gratis
             GeOp -> ifM ((tiposIguales el $ TInt RW) <||> (tiposIguales el TString))
                             (return $ TInt RW) 
                             (errorTT p ("Elementos de tipo" ++ show el ++ "no son comparables"))
+
 transExp(RecordExp flds rt p) = return TUnit -- Completar
+{-transExp(RecordExp flds rt p) = do
+	rtype <- getTipoT rt
+	case rtype of
+		TRecord decFlds uq ->
+			if length typedFlds != length decFlds 
+				then errorTT p "Campos mal definidos"
+				else do
+					let sortedDecFlds = sortBy (\(s,_,_) (s',_,_) -> s `compare` s') decFlds  
+					    sortedTypedFlds = sortBy (\(s,_,_) (s',_,_) -> s `compare` s') typedFlds  
+				    if sortedDecFlds == sortedTypedFlds 
+						then return $ TRecord typedFlds uq 
+						else errorTT p "Error de tipos en alguno de los fields (por ahora)" 		 
+					    								
+		err -> errorTT p ("Tipo " ++ show err ++ "no es un record")
+-}
+
 transExp(SeqExp es p) = do -- Va gratis
         es' <- mapM transExp es
         return $ last es'
