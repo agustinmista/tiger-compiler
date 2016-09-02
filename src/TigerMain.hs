@@ -14,20 +14,25 @@ import TigerPretty
 import TigerSeman
 
 import Text.Parsec (runParser)
+import Data.Map.Strict (toList)
 
 -- Opciones de compilacion
 data Options = Options {
         optAST :: Bool,
+        optPPA :: Bool,
         optEsc :: Bool
     } deriving Show
 
 -- Opciones de compilación por defecto
 defaultOptions :: Options
-defaultOptions = Options {optAST = False, optEsc = False }
+defaultOptions = Options { optAST = False
+                         , optPPA = False
+                         , optEsc = False }
 
 -- Descriptor de opciones de compilacion
 options :: [OptDescr (Options -> Options)]
 options = [ Option ['a'] ["ast"]    (NoArg (\opts -> opts {optAST = True})) "show AST after escape analysis",
+            Option ['p'] ["pretty"] (NoArg (\opts -> opts {optPPA = True})) "show pretty printed AST after escape analysis",
             Option ['e'] ["escape"] (NoArg (\opts -> opts {optEsc = True})) "show escape analysis step by step"]
 
 -- Parsea los argumentos de linea de comando, devuelve un mensaje de error
@@ -44,22 +49,38 @@ parseCommand argv =
 
 -- Calculo de variables escapadas
 calculoEscapadas :: Exp -> Options -> IO (Either Errores Exp)
-calculoEscapadas rawAST opt = 
-                if (optEsc opt) then
-                    case (debbugEnv rawAST) of
-                    (Left errEsc) -> return $ Left errEsc
-                    (Right (exp,envs)) -> do
-                        putStrLn "**** stepper mode begin ****"
-                        mapM_ ((\str -> putStrLn str >> putStrLn "-------") . show) (reverse (e envs))
-                        putStrLn "**** stepper mode end ****"
-                        return (Right exp)
+calculoEscapadas rawAST opts = 
+                if (optEsc opts) then
+                    case (stepperEscape rawAST) of
+                        Left errEsc -> return $ Left errEsc
+                        Right (exp, envs) -> do
+                            printStepper envs
+                            when (optAST opts) (printRawAst exp) 
+                            when (optPPA opts) (printPrettyAst exp)
+                            return (Right exp)
                 else
-                    case (calcularEEsc rawAST) of
-                        (Left errEsc) -> return $ Left errEsc
-                        (Right escap) -> do
-                        when (optAST opt) (putStrLn (show escap) >> putStrLn "\n" >> putStrLn (renderExp escap))
-                        return $ Right escap
+                    case (simpleEscape rawAST) of
+                        Left errEsc -> return $ Left errEsc
+                        Right exp -> do 
+                            when (optAST opts) (printRawAst exp) 
+                            when (optPPA opts) (printPrettyAst exp)
+                            return $ Right exp
 
+-- Printers para debug
+printStepper envs = do
+    putStrLn "**** stepper mode begin ****"
+    mapM_ (putStrLn . show . toList) (reverse (e envs))
+    putStrLn "**** stepper mode end ****\n"
+
+printRawAst ast = do
+    putStrLn "**** raw ast begin ****"
+    putStrLn (show ast)
+    putStrLn "**** raw ast end ****\n"
+
+printPrettyAst ast = do
+    putStrLn "**** pretty ast begin ****"
+    putStrLn (renderExp ast)
+    putStrLn "**** pretty ast end ****\n"
 
 -- Helpers para desempaquetar either
 fromLeft :: Either a b -> a
@@ -99,6 +120,9 @@ main = handle printException $ do
     east <- calculoEscapadas (fromRight rawEAST) opts
     when (isLeft east) (error $ "escape analysis error: \n\t" ++ show (fromLeft east))
     
+    -- Muestra el AST si las flags están activadas
+
+   
     -- Analisis semantico
 --    let semantico = runLion $ fromJust east 
 --    when (isLeft semantico) (error $ "Semantic core:"++ show (fromLeft semantico))

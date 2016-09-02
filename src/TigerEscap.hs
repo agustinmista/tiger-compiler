@@ -311,14 +311,14 @@ initialSt = S 1 M.empty
 calcularEsc :: Exp -> Exp
 calcularEsc e = ST.evalState (travExp e) initialSt
 
-showEnv :: Exp -> (Exp,Estado)
+showEnv :: Exp -> (Exp, Estado)
 showEnv e = ST.runState (travExp e) initialSt
 
-calcularEEsc :: Exp -> Either Errores Exp
-calcularEEsc e = ST.evalStateT (travExp e) initialSt
+simpleEscape :: Exp -> Either Errores Exp
+simpleEscape e = ST.evalStateT (travExp e) initialSt
 
 initialStepper :: SEstado
 initialStepper = Step 1 [M.empty]
 
-debbugEnv :: Exp -> Either Errores (Exp,SEstado)
-debbugEnv e = ST.runStateT (travExp e) initialStepper
+stepperEscape :: Exp -> Either Errores (Exp, SEstado)
+stepperEscape e = ST.runStateT (travExp e) initialStepper

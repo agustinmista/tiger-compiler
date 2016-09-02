@@ -167,13 +167,15 @@ transExp (NilExp {}) = return TNil
 transExp (IntExp {}) = return $ TInt RW
 transExp (StringExp {}) = return TString
 transExp (CallExp nm args p) = do 
-		(_,_,ts,tr,_) <-getTipoFunV nm
-		ts' <- mapM transExp  args
-		lparestipos <- zipWithM tiposIguales ts' ts
-		if (and lparestipos)  
-				then return tr
-				else errorTT p "No coinciden tipos, argumento erroneo"   
-							  
+        (_,_,ts,tr,_) <- getTipoFunV nm
+        let checkTypes t e = do -- armo una función que compara un tipo esperado con el
+            t' <- transExp e    -- calculado recursivamente, sale con error si falla
+            ifM (tiposIguales t t') (return t)
+                (errorTT p $ "Tipo de argumento invalido, se esperaba "
+                           ++ show t ++ "pero se encontro" ++ show t')
+        types <- zipWithM checkTypes ts args
+        return tr
+       
 transExp (OpExp el' oper er' p) = do -- Esta va gratis
         el <- transExp el'
         er <- transExp er'
@@ -210,22 +212,16 @@ transExp (OpExp el' oper er' p) = do -- Esta va gratis
                             (return $ TInt RW) 
                             (errorTT p ("Elementos de tipo" ++ show el ++ "no son comparables"))
 
-transExp(RecordExp flds rt p) = return TUnit -- Completar
-{-transExp(RecordExp flds rt p) = do
-	rtype <- getTipoT rt
-	case rtype of
-		TRecord decFlds uq ->
-			if length typedFlds != length decFlds 
-				then errorTT p "Campos mal definidos"
-				else do
-					let sortedDecFlds = sortBy (\(s,_,_) (s',_,_) -> s `compare` s') decFlds  
-					    sortedTypedFlds = sortBy (\(s,_,_) (s',_,_) -> s `compare` s') typedFlds  
-				    if sortedDecFlds == sortedTypedFlds 
-						then return $ TRecord typedFlds uq 
-						else errorTT p "Error de tipos en alguno de los fields (por ahora)" 		 
-					    								
-		err -> errorTT p ("Tipo " ++ show err ++ "no es un record")
--}
+transExp (RecordExp flds rt p) = do
+    rType <- getTipoT rt  -- busco el tipo de record en el entorno
+    case rType of
+        TRecord decFlds _ -> do
+                typedFlds <- mapM (\(s, e) -> transExp e >>= \et -> return (s, et)) flds -- encuentro el tipo de cada field
+                let sortedFlds = sortBy (comparing fst) typedFlds   -- ordeno los campos tipados, suponiendo que fueron parseados en orden
+                ifM (cmpZip sortedFlds decFlds) (return rType)      -- comparo que cada campo encontrado tenga el tipo que fue declarado 
+                    (errorTT p $ "Record invalido, se esperaba: " ++ show decFlds
+                               ++ " pero se encontro: " ++ show typedFlds)
+        _ -> errorTT p $ "Se esperaba un record, pero se encontro: " ++ show rt
 
 transExp(SeqExp es p) = do -- Va gratis
         es' <- mapM transExp es
