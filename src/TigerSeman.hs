@@ -141,9 +141,24 @@ buscarM s ((s',t,_):xs) | s == s' = Just t
                         | otherwise = buscarM s xs
 
 transVar :: (Manticore w) => Var -> w Tipo
-transVar (SimpleVar s) = return TUnit -- Completar
-transVar (FieldVar v s) = return TUnit -- Completar
-transVar (SubscriptVar v e) =return TUnit
+transVar (SimpleVar s) = getTipoValV s
+
+transVar (FieldVar v s) = do 
+	v' <- transVar v
+	case v' of
+		TRecord xs _ ->
+			case buscarM s xs of
+				Just t -> return t
+				_ -> E.error $ internal $ T.pack $ "El campo no está definido"
+		_ -> E.error $ internal $ T.pack $ "La variable no tiene tipo record" 
+
+transVar (SubscriptVar v e) = do
+	e' <- transExp e
+	C.unlessM (tiposIguales e' $ TInt RW) $ E.error $ internal $ T.pack $ "El indice no es un entero"
+	v' <- transVar v
+	case v' of 
+		TArray t _ -> return t
+		_ -> E.error $ internal $ T.pack $ "La variable no tiene tipo record" 
 
 transTy :: (Manticore w) => Ty -> w Tipo
 transTy (NameTy s) = return TUnit -- Completar
@@ -168,7 +183,8 @@ transExp (IntExp {}) = return $ TInt RW
 transExp (StringExp {}) = return TString
 transExp (CallExp nm args p) = do 
         (_,_,ts,tr,_) <- getTipoFunV nm
-        let checkTypes t e = do -- armo una función que compara un tipo esperado con el
+       	C.unless (P.length ts == P.length args) $ errorTT p "Numero de argumentos erroneo"
+	let checkTypes t e = do -- armo una función que compara un tipo esperado con el
             t' <- transExp e    -- calculado recursivamente, sale con error si falla
             ifM (tiposIguales t t') (return t)
                 (errorTT p $ "Tipo de argumento invalido, se esperaba "
@@ -226,16 +242,48 @@ transExp (RecordExp flds rt p) = do
 transExp(SeqExp es p) = do -- Va gratis
         es' <- mapM transExp es
         return $ last es'
-transExp(AssignExp var val p) = return TUnit -- Completar
+
+transExp(AssignExp var val p) = do
+	var' <- transVar var
+	C.unlessM (tiposIguales var' $ TInt RO) $ errorTT p "Se intento asignar una variable RO"
+	val' <- transExp val
+	C.unlessM (tiposIguales var' val') $ errorTT p "Error de tipos en la asignacion"
+	return TUnit	
+
 transExp(IfExp co th Nothing p) = do
         co' <- transExp co
         C.unlessM (tiposIguales co' $ TInt RW) $ errorTT p "Error en la condición"
         th' <- transExp th
         C.unlessM (tiposIguales th' TUnit) $ errorTT p "La expresión del then no es de tipo unit"
         return TUnit
-transExp(IfExp co th (Just el) p) = return TUnit -- Completar
-transExp(WhileExp co body p) = return TUnit -- Completar
-transExp(ForExp nv mb lo hi bo p) = return TUnit -- Completar
+
+transExp(IfExp co th (Just el) p) = do 
+        co' <- transExp co
+        C.unlessM (tiposIguales co' $ TInt RW) $ errorTT p "Error en la condición"
+        th' <- transExp th
+        el' <- transExp el
+        C.unlessM (tiposIguales th' el') $ errorTT p "Las ramas del if tienen distinto tipo"
+        return th'
+
+transExp(WhileExp co body p) = do
+        co' <- transExp co
+        C.unlessM (tiposIguales co' $ TInt RW) $ errorTT p "Error en la condición"
+        body' <- transExp body
+        C.unlessM (tiposIguales body' TUnit) $ errorTT p "La expresión del while no es de tipo unit"
+        return TUnit
+
+transExp(ForExp nv mb lo hi bo p) = do
+	lo' <- transExp lo
+	C.unlessM (tiposIguales lo' $ TInt RW) $ errorTT p "Error en la cota inferior"
+	hi' <- transExp hi
+	C.unlessM (tiposIguales hi' $ TInt RW) $ errorTT p "Error en la cota superior"
+	setRPoint 
+	insertVRO nv
+	bo' <- transExp bo
+	C.unlessM (tiposIguales bo' $ TUnit) $ errorTT p "Cuerpo del for no es de tipo Unit"	
+	restoreRPoint
+	return TUnit	
+
 transExp(LetExp dcs body p) = do -- Va gratis...
         setRPoint
         mapM_ transDec dcs -- esto se deberá modificar al momento de generar cod intermedio.
@@ -243,5 +291,21 @@ transExp(LetExp dcs body p) = do -- Va gratis...
         b <- transExp body
         restoreRPoint
         return b
+
 transExp(BreakExp p) = return TUnit -- Va gratis ;)
-transExp(ArrayExp sn cant init p) = return TUnit -- Completar
+
+transExp(ArrayExp sn cant init p) = do
+	sn' <- getTipoT sn
+	init' <- transExp init
+	cant' <- transExp cant
+	C.unlessM (tiposIguales cant' (TInt RW)) $ errorTT p "El tamaño del arreglo no es un entero" 
+	case sn' of
+		TArray t _ -> do
+			C.unlessM (tiposIguales t init') $ errorTT p "El tipo del arreglo no coincide con el inicial"
+			return sn' 
+		_ -> errorTT p "El tipo no es un array"
+		 
+
+
+
+
