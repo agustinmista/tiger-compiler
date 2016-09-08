@@ -142,7 +142,6 @@ buscarM s ((s',t,_):xs) | s == s' = Just t
 
 transVar :: (Manticore w) => Var -> w Tipo
 transVar (SimpleVar s) = getTipoValV s
-
 transVar (FieldVar v s) = do 
 	v' <- transVar v
 	case v' of
@@ -151,7 +150,6 @@ transVar (FieldVar v s) = do
 				Just t -> return t
 				_ -> E.error $ internal $ T.pack $ "El campo no está definido"
 		_ -> E.error $ internal $ T.pack $ "La variable no tiene tipo record" 
-
 transVar (SubscriptVar v e) = do
 	e' <- transExp e
 	C.unlessM (tiposIguales e' $ TInt RW) $ E.error $ internal $ T.pack $ "El indice no es un entero"
@@ -161,19 +159,29 @@ transVar (SubscriptVar v e) = do
 		_ -> E.error $ internal $ T.pack $ "La variable no tiene tipo record" 
 
 transTy :: (Manticore w) => Ty -> w Tipo
-transTy (NameTy s) = return TUnit -- Completar
-transTy (RecordTy flds) = return TUnit -- Completar
-transTy (ArrayTy s) = return TUnit -- Completar
+transTy (NameTy s) = getTipoT s 
+transTy (ArrayTy s) = do
+	u <- ugen
+	t <- getTipoT s
+	return $ TArray t u 
+transTy (RecordTy flds) = do 
+	let sortedFlds = sortBy (comparing (\(s,_,_)->s)) flds
+	    zippedFlds = zip sortedFlds [1..]  -- (fld, n)
+	typedFlds <- mapM (\((s, _, t),n) -> do
+			t' <- transTy t
+			return (s, t', n)) zippedFlds
+	u <- ugen
+	return $ TRecord typedFlds u
 
 fromTy :: (Manticore w) => Ty -> w Tipo
 fromTy (NameTy s) = getTipoT s
 fromTy _ = P.error "no debería haber una definición de tipos en los args..."
 
 transDec :: (Manticore w) => Dec -> w () -- por ahora...
+transDec (TypeDec ls) = addTypos ls
+transDec (VarDec s mb Nothing init p) = return () -- var x := exp
+transDec (VarDec s mb (Just t) init p) = return () -- var x:T := exp
 transDec (FunctionDec fb) = return ()
-transDec (VarDec s mb mty init p) = return ()
-transDec (TypeDec ls ) = return ()
-       
 
 transExp :: (Manticore w) => Exp -> w Tipo
 transExp (VarExp v p) = addpos (transVar v) p
