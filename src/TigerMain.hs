@@ -120,11 +120,9 @@ main = handle printException $ do
     east <- calculoEscapadas (fromRight rawEAST) opts
     when (isLeft east) (error $ "escape analysis error: \n\t" ++ show (fromLeft east))
     
-    -- Muestra el AST si las flags están activadas
-
-   
     -- Analisis semantico
---    let semantico = runLion $ fromJust east 
---    when (isLeft semantico) (error $ "Semantic core:"++ show (fromLeft semantico))
+    let seman = runLion $ fromRight east 
+    when (isLeft seman) (error $ "Semantic core: " ++ show (fromLeft seman))
+    putStrLn $ show seman
     
     putStrLn "finished"

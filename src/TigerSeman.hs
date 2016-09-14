@@ -26,7 +26,7 @@ class (Environmental w, NotFounder w) => Manticore w where
 -- Que compartan el espacio de nombres es decisión de la instancia.
     insertValV :: Symbol -> ValEntry -> w ()
     insertFunV :: Symbol -> FunEntry -> w ()
-    insertVRO :: Symbol -> w ()
+    insertVRO  :: Symbol -> ValEntry -> w ()
     insertTipoT :: Symbol -> Tipo -> w ()
     getTipoFunV :: Symbol -> w FunEntry 
     getTipoValV :: Symbol -> w ValEntry
@@ -84,33 +84,161 @@ class (Environmental w, NotFounder w) => Manticore w where
             ) tp
 
 addpos t p = handle t  (\t -> E.error $ adder t (T.pack $ show p))
+
+
 -- Un ejemplo de estado que alcanzaría para realizar todas la funciones es:
--- data EstadoG = G {unique :: Int, vEnv :: [M.Map Symbol EnvEntry], tEnv :: [M.Map Symbol Tipo]}
---     deriving Show
---
+data EstadoG = G { unique :: Int
+                 , vEnv   :: Stack Lion (Mapper Lion Symbol EnvEntry)
+                 , tEnv   :: Stack Lion (Mapper Lion Symbol Tipo)
+                 } deriving Show
+
 -- Acompañado de un tipo de errores
--- data SEErrores = NotFound T.Text | DiffVal T.Text | Internal T.Text
---     deriving Show
---
+data SEErrores = NotFound T.Text 
+               | DiffVal T.Text 
+               | Internal T.Text
+                 deriving Show
+
+
 --  Podemos definir el estado inicial como:
--- initConf :: EstadoG
--- initConf = G {unique = 0
---             , tEnv = [M.insert (T.pack "int") (TInt RW) (M.singleton (T.pack "string") TString)]
---             , vEnv = [M.fromList
---                     [(T.pack "print", Func (1,T.pack "print",[TString], TUnit, True))
---                     ,(T.pack "flush", Func (1,T.pack "flush",[],TUnit, True))
---                     ,(T.pack "getchar",Func (1,T.pack "getchar",[],TString,True))
---                     ,(T.pack "ord",Func (1,T.pack "ord",[TString],TInt RW,True)) -- Ojota con este intro...
---                     ,(T.pack "chr",Func (1,T.pack "chr",[TInt RW],TString,True))
---                     ,(T.pack "size",Func (1,T.pack "size",[TString],TInt RW,True))
---                     ,(T.pack "substring",Func (1,T.pack "substring",[TString,TInt RW, TInt RW],TString,True))
---                     ,(T.pack "concat",Func (1,T.pack "concat",[TString,TString],TString,True))
---                     ,(T.pack "not",Func (1,T.pack "not",[TInt RW],TInt RW,True))
---                     ,(T.pack "exit",Func (1,T.pack "exit",[TInt RW],TUnit,True))
---                     ]]}
--- Utilizando alguna especia de run de la monada definida, obtenemos algo así
---runLion :: Exp -> Either SEErrores Tipo 
---runLion e = run (transExp e) initConf
+initConf :: EstadoG
+initConf = G { unique = 0
+             , tEnv = StackL [ Map $ M.insert (T.pack "int") (TInt RW) (M.singleton (T.pack "string") TString)]
+             , vEnv = StackL [ Map $ M.fromList
+                     [(T.pack "print", Func (1,T.pack "print",[TString], TUnit, True))
+                     ,(T.pack "flush", Func (1,T.pack "flush",[],TUnit, True))
+                     ,(T.pack "getchar",Func (1,T.pack "getchar",[],TString,True))
+                     ,(T.pack "ord",Func (1,T.pack "ord",[TString],TInt RW,True)) -- Ojota con este intro...
+                     ,(T.pack "chr",Func (1,T.pack "chr",[TInt RW],TString,True))
+                     ,(T.pack "size",Func (1,T.pack "size",[TString],TInt RW,True))
+                     ,(T.pack "substring",Func (1,T.pack "substring",[TString,TInt RW, TInt RW],TString,True))
+                     ,(T.pack "concat",Func (1,T.pack "concat",[TString,TString],TString,True))
+                     ,(T.pack "not",Func (1,T.pack "not",[TInt RW],TInt RW,True))
+                     ,(T.pack "exit",Func (1,T.pack "exit",[TInt RW],TUnit,True))
+                     ]]}
+
+
+-- Defino la monada que va a llevar el estado y devolver o un error o alguna otra pavada (por ahora, un tipo)
+type Lion = ST.StateT EstadoG (Either SEErrores)
+
+-- Ahora puedo poner la monada a trabajar
+runLion :: Exp -> Either SEErrores Tipo 
+runLion e = case ST.runStateT (transExp e) initConf of 
+                Left err -> Left err
+                Right (ty, eg) -> Right ty
+
+
+-- Debo mostrar que todo leon puede andar en manada
+instance Environmental Lion where
+    data Mapper Lion a b = Map (M.Map a b) deriving Show
+    emptyI = Map M.empty
+    insertI s d (Map e) = Map $ M.insert s d e
+    updateI = insertI
+    lookupI s (Map e) = M.lookup s e
+    intersecI f (Map m1) (Map m2) = Map $ M.intersectionWith f m1 m2
+
+-- Tengo que mostrar que un leon es un deamon (sea lo que eso fuera)
+instance Deamon Lion where
+    data Error Lion = E SEErrores
+    error (E e) = throwError e
+    handle m f = catchError m (f . E)
+    internal = E . Internal
+    adder (E e) e1 = E $ eappend e e1
+        where eappend (NotFound t) t1 = NotFound (T.append t t1)
+              eappend (DiffVal t) t1 = DiffVal (T.append t t1)
+              eappend (Internal t) t1 = Internal (T.append t t1)
+
+-- Tambien debo mostrar que el leon a veces se muere de hambre
+instance NotFounder Lion where
+    notfound = E.notfound
+
+-- Tambien hace falta mostrar que Lion puede usar una lista como un stack
+instance Stacker Lion where
+    data Stack Lion x = StackL [x]
+    push x (StackL st) =  return $ StackL (x:st)
+    pop (StackL st) = case st of
+        (x:xs) -> return $ StackL xs
+        _ ->  E.error $ internal $ T.pack "empty stack"
+    top (StackL st) = case st of
+        (x:_) -> return x
+        _ ->  E.error $ internal $ T.pack "empty stack"
+
+instance (Show a) => Show (Stack Lion a) where
+    show (StackL x) = "Stack" ++ (foldr (\t ts -> show t ++ '\n':ts) "" x)
+
+-- Ahora si, puedo ver que si el leon tiene todo lo anterio,
+-- entonces puede volar
+instance Manticore Lion where
+    ugen = do
+        st <- ST.get
+        let u = unique st
+        ST.put (st{unique = u+1})
+        return u
+    showTEnv = do
+        tenv <- getTEnv `addLer` "showTEnv"
+        trace (show  tenv ) (return ())
+    showVEnv = do
+        venv <- getVEnv `addLer` "showVEnv"
+        trace (show venv) (return ())
+    insertVRO = insertValV 
+    insertValV s ventry = do
+        venv <- getVEnv `addLer` "insertValV"
+        setVEnv $ insertI s (Var ventry) venv
+    getTipoValV s = do
+        venv <- getVEnv `addLer` "getTipoValV"
+        case lookupI s venv of
+            Nothing -> E.error $ notfound (T.append s (T.pack " getTipoValV/Nothing "))
+            Just (Var v) -> return v
+            _ -> E.error $ internal $ T.pack $ "La variable " ++ show s ++ " no es una funcion" 
+    insertFunV s fentry = do
+        venv <- getVEnv `addLer` "insertFunV"
+        setVEnv $ insertI s (Func fentry) venv
+    getTipoFunV s = do
+        venv <- getVEnv `addLer` "getTipoFunV"
+        case lookupI s venv of
+            Nothing -> E.error $ notfound (T.append s (T.pack " getTipoFunV/Nothing "))
+            Just (Func f) -> return f
+            _ -> E.error $ internal $ T.pack $ "La variable " ++ show s ++ " no es una funcion"
+    insertTipoT s t = do
+        tenv <- getTEnv `addLer` "insertTipoT"
+        setTEnv $ insertI s t tenv
+    getTipoT s = do
+        tenv <- getTEnv `addLer` "getTipoT"
+        case lookupI s tenv of
+            Nothing -> E.error $ notfound (T.append s (T.pack " getTipoT/Nothing"))
+            Just p -> return p
+    setRPoint = do
+        venv <- getVEnv `addLer` "setRPoint"
+        tenv <- getTEnv `addLer` "setRPoint"
+        setVEnv venv
+        setTEnv tenv
+    restoreRPoint = do
+        st <- ST.get
+        vs <- pop (vEnv st) `addLer` "restoreRPoint"
+        ts <- pop (tEnv st) `addLer` "restoreRPoint"
+        ST.put (st{vEnv = vs, tEnv = ts})
+
+-- Auxiliares para la instancia de Manticore Lion
+getVEnv :: Lion (Mapper Lion Symbol EnvEntry)
+getVEnv = do
+    st <- ST.get
+    addLer (top (vEnv st)) "getVEnv"
+
+getTEnv :: Lion (Mapper Lion Symbol Tipo)
+getTEnv = do
+    st <- ST.get
+    addLer (top (tEnv st)) "getTEnv"
+
+setVEnv :: Mapper Lion Symbol EnvEntry -> Lion ()
+setVEnv venv = do
+    st <- ST.get
+    venv' <- push venv (vEnv st)
+    ST.put (st{vEnv = venv'})
+
+setTEnv :: Mapper Lion Symbol Tipo -> Lion ()
+setTEnv tenv = do
+    st <- ST.get
+    tenv' <- push tenv (tEnv st)
+    ST.put (st{tEnv = tenv'})
 
 depend :: Ty -> [Symbol]
 depend (NameTy s) = [s]
@@ -171,6 +299,8 @@ transTy (RecordTy flds) = do
                             return (s, t', n)) zippedFlds
         u <- ugen
         return $ TRecord typedFlds u
+
+
 
 fromTy :: (Manticore w) => Ty -> w Tipo
 fromTy (NameTy s) = getTipoT s
@@ -285,7 +415,7 @@ transExp(ForExp nv mb lo hi bo p) = do
         hi' <- transExp hi
         C.unlessM (tiposIguales hi' $ TInt RW) $ errorTT p "Error en la cota superior"
         setRPoint 
-        insertVRO nv
+        insertVRO nv (TInt RO)
         bo' <- transExp bo
         C.unlessM (tiposIguales bo' $ TUnit) $ errorTT p "Cuerpo del for no es de tipo Unit"    
         restoreRPoint

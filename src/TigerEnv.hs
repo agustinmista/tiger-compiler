@@ -12,7 +12,12 @@ class (Monad w) => Environmental w where
     updateI :: (Ord a) => a -> d -> Mapper w a d -> Mapper w a d 
     emptyI :: Mapper w a d
     -- showMap :: (Show a, Show d) => Mapper w a d ->  w String 
-
+            
+class Stacker w where
+    data Stack w :: * -> *
+    push :: a -> Stack w a -> w (Stack w a)
+    pop  :: Stack w a -> w (Stack w a)
+    top  :: Stack w a -> w a
 
 fromList :: (Ord a, Environmental m)=> [(a,k)] -> Mapper m a k
 fromList = foldl (\env (k,d) -> insertI k d env) emptyI
