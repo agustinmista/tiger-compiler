@@ -6,10 +6,12 @@ import TigerTips
 import TigerEnv
 import TigerErrores as E
 import TigerAbs
+import TigerTemp
 
 import qualified Data.Map.Strict as M
 import qualified Control.Monad.State as ST
 import Control.Monad
+import Data.Monoid
 import Control.Arrow
 import Control.Monad.Except
 import Control.Conditional as C
@@ -146,10 +148,10 @@ type Lion = ST.StateT EstadoG (Either SEErrores)
 
 -- Ahora puedo poner la monada a trabajar
 runLion :: Exp -> Either SEErrores Tipo 
-runLion e = case ST.runStateT (transExp e) initConf of 
-                Left err -> Left err
-                Right (ty, eg) -> Right ty
-
+--runLion e = case ST.runStateT (transExp e) initConf of 
+--                Left err -> Left err
+--                Right (ty, eg) -> Right ty
+runLion e = either (\err-> Left err) (\(ty, eg) -> Right ty) $ ST.runStateT (transExp e) initConf
 
 -- Debo mostrar que todo leon puede andar en manada
 instance Environmental Lion where
@@ -332,16 +334,47 @@ fromTy _ = P.error "no debería haber una definición de tipos en los args..."
 
 transDec :: (Manticore w) => Dec -> w () -- por ahora...
 transDec (TypeDec ls) = addTypos ls
-transDec (VarDec s mb mt init p) = do
+transDec (VarDec s mb Nothing init p) = do
     tinit <- transExp init
-    case mt of
-        Nothing -> return ()          -- var x := exp
-        Just t  -> do                 -- var x:T := exp
-            tt <- getTipoT t  --Necesito pos?
-            C.unlessM (tiposIguales tt tinit) (errorTT p $ "Error de tipos: se esperaba valor de tipo "
-                                              ++ show t++ " y se tiene un valor de tipo " ++ show tinit)
-            return ()
-transDec (FunctionDec fb) = return ()
+    case tinit of
+        TInt RO -> insertValV s (TInt RW)
+        t -> insertValV s t
+	
+transDec (VarDec s mb (Just t) init p) = do
+    tinit <- transExp init
+    t' <- getTipoT t
+    C.unlessM (tiposIguales t' tinit) 
+	      (errorTT p $ "Se esperaba valor de tipo " ++ 
+                           show t' ++ " y se tiene un valor de tipo " ++ show tinit)
+    case tinit of
+        TInt RO -> insertValV s (TInt RW)
+        t -> insertValV s t
+   
+
+--transDec (FunctionDec fb) = return ()
+transDec (FunctionDec fb) = do
+    mapM_ (\(s, flds, ms, e, p) -> do
+        u <- ugen
+	flds' <- mapM (\(_,_,ty) -> transTy ty) flds
+        label <- genLabel s p u
+	case ms of
+            Nothing -> insertFunV s  (u, label, flds', TUnit, False)      
+            Just rt -> do
+                rt' <- getTipoT rt
+                insertFunV s (u, label, flds', rt', False)
+        ) fb  
+    mapM_ (\(s, flds, ms, e, p) -> do
+       (u,label,ts,tr,_) <- getTipoFunV s
+       setRPoint
+       mapM_ (\((s,_,_),t) -> insertValV s t) (zip flds ts)
+       e' <- transExp e
+       C.unlessM (tiposIguales e' tr) (errorTT p $ "Se esperaba que el tipo del cuerpo de la funcion " ++
+                                                   show s ++ " fuera " ++ show tr ++ " y se tiene " ++ show e')
+       restoreRPoint
+       ) fb
+     
+---type FunEntry = (Unique, Label, [Tipo], Tipo, Bool)
+--FunctionDec :: [(Symbol,[Field], Maybe Symbol, Exp, Pos)] -> Dec
 
 transExp :: (Manticore w) => Exp -> w Tipo
 transExp (VarExp v p) = addpos (transVar v) p
@@ -463,3 +496,5 @@ transExp(ArrayExp sn cant init p) = do
                 return sn' 
             _ -> errorTT p "Error de tipos en el array:  el tipo no es un array"
 
+genLabel s p@(Simple l c) u = return $ s <> T.pack ("." ++ show l ++ "." ++ show c ++ "." ++ show u)  
+genLabel s p u = E.error $ internal $ T.pack $ "Error generando el label para " ++ show s ++ " en " ++ printPos p  

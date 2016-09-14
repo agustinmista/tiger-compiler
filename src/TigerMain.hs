@@ -123,6 +123,6 @@ main = handle printException $ do
     -- Analisis semantico
     let seman = runLion $ fromRight east 
     when (isLeft seman) (error $ "Semantic core: " ++ show (fromLeft seman))
-    putStrLn $ show seman
+    putStrLn $ show (fromRight seman)
     
     putStrLn "finished"
