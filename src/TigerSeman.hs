@@ -443,7 +443,9 @@ transExp(SeqExp es p) = do -- Va gratis
 
 transExp(AssignExp var val p) = do
     var' <- transVar var
-    C.unlessM (tiposIguales var' $ TInt RO) $ errorTT p "asignacion: Se intento asignar una variable RO"
+    tmp <- tiposIguales var' (TInt RO)
+    trace (show tmp) (return ())
+   -- C.unlessM (tiposIguales var' $ TInt RO) $ errorTT p "asignacion: Se intento asignar una variable RO"
     val' <- transExp val
     C.unlessM (tiposIguales var' val') $ errorTT p ("asignacion: se esperaba valor de tipo "
                                           ++ show var' ++ " y se tiene valor de tipo " ++ show val')
