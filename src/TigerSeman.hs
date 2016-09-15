@@ -353,7 +353,6 @@ transDec (VarDec s mb (Just t) init p) = do
         t -> insertValV s t
    
 
---transDec (FunctionDec fb) = return ()
 transDec (FunctionDec fb) = do
     mapM_ (\(s, flds, ms, e, p) -> do
         u <- ugen
@@ -487,7 +486,6 @@ transExp(ForExp nv mb lo hi bo p) = do
 transExp(LetExp dcs body p) = do -- Va gratis...
         setRPoint
         mapM_ transDec dcs -- esto se deberá modificar al momento de generar cod intermedio.
-        showTEnv 
         b <- transExp body
         restoreRPoint
         return b

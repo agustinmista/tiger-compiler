@@ -90,6 +90,7 @@ printSourceCode src = do
     putStrLn src
     putStrLn "**** input source code end ****\n"
 
+    
 -- Helpers para desempaquetar either
 fromLeft :: Either a b -> a
 fromLeft (Left x) = x
@@ -109,17 +110,21 @@ printException :: SomeException -> IO ()
 printException e = putStrLn $ "tiger: " ++ show e
 
 
+
 ---------------------------------------------
 --                  MAIN                   --
 ---------------------------------------------
 main = handle printException $ do
-    -- Parseo de argumentos de linea de comandos
+    -- Parseo de argumentos de linea de comandos,
+    -- si falla muestro el mensaje de ayuda
     argv <- Env.getArgs
     let parsedArgv = parseCommand argv
-    when (isLeft parsedArgv) (error $ fromLeft parsedArgv)
+    when (isLeft parsedArgv) (error $ fromLeft parsedArgv ++ "\n" ++
+                                      usageInfo "Usage: tiger [OPTIONS] file" options)
     let (opts, file) = fromRight parsedArgv
+    
+    -- Leo archivo fuente
     sourceCode <- readFile file
-
     when (optSrc opts) $ printSourceCode sourceCode
 
     -- Parseo del archivo fuente
@@ -133,6 +138,9 @@ main = handle printException $ do
     -- Analisis semantico
     let seman = runLion $ fromRight east 
     when (isLeft seman) (error $ "error semantico\n" ++ show (fromLeft seman))
-    putStrLn $ show (fromRight seman)
-    
+    putStrLn $ "Tipo resultante: " ++ show (fromRight seman)
+
     putStrLn "finished"
+
+    
+
