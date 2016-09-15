@@ -1,14 +1,32 @@
 module TigerTips where
 
 import Data.Text
+import qualified Data.List as L
 
 type Unique = Int
 
 data RWO = RW | RO
     deriving (Show,Eq)
 
-data Tipo = TUnit | TNil | TInt RWO | TString | TArray Tipo Unique | TRecord [(Text, Tipo, Int)] Unique | RefRecord Text |  TTipo Text
-    deriving (Show,Eq)
+data Tipo = TUnit 
+          | TNil 
+          | TInt RWO 
+          | TString 
+          | TArray Tipo Unique 
+          | TRecord [(Text, Tipo, Int)] Unique 
+          | RefRecord Text 
+          | TTipo Text
+    deriving Eq
+
+instance Show Tipo where
+    show TUnit = "()"
+    show TNil = "Nil"
+    show (TInt _) = "int"
+    show (TString) = "string"
+    show (TArray t u) = "(array of " ++ show t ++ ")[uid=" ++ show u ++ "]"
+    show (TRecord flds u) = "({" ++  (L.intercalate ", " (L.map (\(n,t,i) -> unpack n ++ " : " ++ show t) flds)) ++ "})[uid=" ++ show u ++ "]"
+    show (RefRecord t) = "record ref"
+    show (TTipo t) = unpack t
 
 intiposIguales :: Tipo -> Tipo -> Bool -- optimizar?
 intiposIguales (TRecord {}) TNil = True

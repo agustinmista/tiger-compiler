@@ -1,0 +1,70 @@
+.
+├── good
+│   ├── compare-record-and-nil.tig
+│   ├── fact.tig
+│   ├── local-vs-global-type.tig
+│   ├── merge.tig
+│   ├── queens.tig
+│   ├── recursive-comments.tig
+│   ├── recursive-types.tig
+│   ├── test01.tig
+│   ├── test02.tig
+│   ├── test03.tig
+│   ├── test06.tig
+│   ├── test07.tig
+│   ├── test08.tig
+│   ├── test12.tig
+│   ├── test27.tig
+│   ├── test30.tig
+│   ├── test37.tig
+│   ├── test42.tig
+│   ├── test44.tig
+│   ├── test47.tig
+│   ├── test48.tig
+│   ├── test50.tig
+│   └── three-name-spaces.tig
+├── propios
+│   ├── ej2.tig
+│   ├── ej3.tig
+│   ├── helloworld.tig
+│   ├── testArray.tig
+│   └── test.tig
+├── syntax
+│   └── typeid.tig
+└── type
+    ├── assign-loop-var.tig
+    ├── fun-vs-var.tig
+    ├── nil-equal-nil.tig
+    ├── test09.tig --> diferentes tipos en las ramas then y else [ok]
+    ├── test10.tig --> cuerpo del while no es unit [ok]
+    ├── test11.tig --> cota superior del for no es int [ok/seman] 
+    ├── test13.tig --> comparacion de tipos diferentes [ok/seman]
+    ├── test14.tig --> comparacion de record con array [ok/seman] 
+    ├── test15.tig --> cuerpo de if-then no es unit [ok/seman] 
+    ├── test16.tig --> tipos mutuamente recursivos [hanged] 
+    ├── test17.tig --> definicion recursiva de tipos interrumpida [hanged]
+    ├── test18.tig --> definicion de funciones recursivas interrumpida [hanged]
+    ├── test19.tig --> uso de variable fuera de scope [ok/escape]
+    ├── test20.tig --> variable no declarada [ok/escap]
+    ├── test21.tig --> se usa el valor de retorno de un procedimiento [ok/seman]
+    ├── test22.tig --> se accede a un campo no definido de un record [ok/seman]
+    ├── test23.tig --> se asisgna un valor de tipo incorrecto a un campo [error (se intenta asignar una variable RO)/seman]
+    ├── test24.tig --> se indexa una variable que no es array [ok/seman]
+    ├── test25.tig --> se indexa una variable que no es un record [ok/seman]
+    ├── test26.tig --> se compara int con string [ok/seman]
+    ├── test28.tig --> se inicializa un record con una variable de tipo record semejante pero de distinto unique [ok/seman]
+    ├── test29.tig --> idem 28 pero con arrays de distinto unique [ok/seman]
+    ├── test31.tig --> se declara una variable con tipado opcional int y se inicializa con string [ok/seman]
+    ├── test32.tig --> 
+    ├── test33.tig --> 
+    ├── test34.tig --> 
+    ├── test35.tig --> 
+    ├── test36.tig --> 
+    ├── test38.tig --> 
+    ├── test39.tig --> 
+    ├── test40.tig --> 
+    ├── test43.tig --> 
+    ├── test45.tig --> 
+    └── test51.tig --> 
+
+4 directories, 63 files

@@ -24,8 +24,8 @@ data Errores = NotFound T.Text
              | Interno T.Text 
 
 instance Show Errores where
-    show (NotFound e) = "can't find var " ++ show e
-    show (Interno e)  = "internal error:  " ++ show e
+    show (NotFound e) = "no se encuentra la variable " ++ show e
+    show (Interno e)  = "error interno:  " ++ show e
     
 eappend (NotFound e) e1 = NotFound (T.append e e1)
 eappend (Interno e) e1 = Interno (T.append e e1)

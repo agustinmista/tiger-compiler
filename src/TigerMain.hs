@@ -18,6 +18,7 @@ import Data.Map.Strict (toList)
 
 -- Opciones de compilacion
 data Options = Options {
+        optSrc :: Bool,
         optAST :: Bool,
         optPPA :: Bool,
         optEsc :: Bool
@@ -25,13 +26,15 @@ data Options = Options {
 
 -- Opciones de compilación por defecto
 defaultOptions :: Options
-defaultOptions = Options { optAST = False
+defaultOptions = Options { optSrc = False
+                         , optAST = False
                          , optPPA = False
                          , optEsc = False }
 
 -- Descriptor de opciones de compilacion
 options :: [OptDescr (Options -> Options)]
-options = [ Option ['a'] ["ast"]    (NoArg (\opts -> opts {optAST = True})) "show AST after escape analysis",
+options = [ Option ['i'] ["input"]  (NoArg (\opts -> opts {optSrc = True})) "show input source code",
+            Option ['a'] ["ast"]    (NoArg (\opts -> opts {optAST = True})) "show AST after escape analysis",
             Option ['p'] ["pretty"] (NoArg (\opts -> opts {optPPA = True})) "show pretty printed AST after escape analysis",
             Option ['e'] ["escape"] (NoArg (\opts -> opts {optEsc = True})) "show escape analysis step by step"]
 
@@ -82,6 +85,11 @@ printPrettyAst ast = do
     putStrLn (renderExp ast)
     putStrLn "**** pretty ast end ****\n"
 
+printSourceCode src = do
+    putStrLn "**** input source code begin ****"
+    putStrLn src
+    putStrLn "**** input source code end ****\n"
+
 -- Helpers para desempaquetar either
 fromLeft :: Either a b -> a
 fromLeft (Left x) = x
@@ -111,18 +119,20 @@ main = handle printException $ do
     when (isLeft parsedArgv) (error $ fromLeft parsedArgv)
     let (opts, file) = fromRight parsedArgv
     sourceCode <- readFile file
-    
+
+    when (optSrc opts) $ printSourceCode sourceCode
+
     -- Parseo del archivo fuente
     let rawEAST = runParser expression () file sourceCode
-    when (isLeft rawEAST) (error $ "error parsing " ++ show (fromLeft rawEAST))
+    when (isLeft rawEAST) (error $ "error de parseo\n" ++ show (fromLeft rawEAST))
     
     -- Calculo de variables escapadas
     east <- calculoEscapadas (fromRight rawEAST) opts
-    when (isLeft east) (error $ "escape analysis error: \n\t" ++ show (fromLeft east))
+    when (isLeft east) (error $ "error en el calculo de variables escapadas\n" ++ show (fromLeft east))
     
     -- Analisis semantico
     let seman = runLion $ fromRight east 
-    when (isLeft seman) (error $ "Semantic core: " ++ show (fromLeft seman))
+    when (isLeft seman) (error $ "error semantico\n" ++ show (fromLeft seman))
     putStrLn $ show (fromRight seman)
     
     putStrLn "finished"
