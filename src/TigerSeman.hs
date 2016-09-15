@@ -383,36 +383,36 @@ transExp (IntExp {}) = return $ TInt RW
 transExp (StringExp {}) = return TString
 transExp (CallExp nm args p) = do 
         (_,_,ts,tr,_) <- getTipoFunV nm
-        C.unless (P.length ts == P.length args) $ errorTT p "Numero de argumentos erroneo"
+        C.unless (P.length ts == P.length args) $ errorTT p $ "llamada a funcion " ++ T.unpack nm ++ ": numero de argumentos erroneo"
         let checkTypes t e = do -- armo una función que compara un tipo esperado con el
             t' <- transExp e    -- calculado recursivamente, sale con error si falla
             ifM (tiposIguales t t') (return t)
-                (errorTT p $ "Tipo de argumento invalido, se esperaba "
-                           ++ show t ++ "pero se encontro" ++ show t')
+                (errorTT p $ "llamada a funcion " ++ T.unpack nm ++ ": tipo de argumento invalido, se esperaba "
+                           ++ show t ++ " pero se encontro " ++ show t')
         types <- zipWithM checkTypes ts args
         return tr
 transExp (OpExp el' oper er' p) = do -- Esta va gratis
         el <- transExp el'
         er <- transExp er'
-        C.unlessM (tiposIguales el er) (errorTT p ("Tipo " ++ show el ++ " y " ++ show er ++ " no son comparables"))
+        C.unlessM (tiposIguales el er) (errorTT p ("tipos " ++ show el ++ " y " ++ show er ++ " no son comparables"))
         case oper of
             EqOp  -> do
-                    C.unless (okOp el er oper) (errorTT p ("Tipo " ++ show el ++ " y " ++ show er ++ "no son comparables mediante " ++ show oper))
+                    C.unless (okOp el er oper) (errorTT p ("tipos " ++ show el ++ " y " ++ show er ++ "no son comparables mediante " ++ show oper))
                     return $ TInt RW
             NeqOp -> do
-                    C.unless (okOp el er oper) (errorTT p ("Tipo " ++ show el ++ " y " ++ show er ++ "no son comparables mediante " ++ show oper))
+                    C.unless (okOp el er oper) (errorTT p ("tipos " ++ show el ++ " y " ++ show er ++ "no son comparables mediante " ++ show oper))
                     return $ TInt RW
             PlusOp -> do
-                    C.unlessM (tiposIguales el $ TInt RW) (errorTT p ("Tipo " ++ show el' ++ " no es un entero"))
+                    C.unlessM (tiposIguales el $ TInt RW) (errorTT p ("tipos " ++ show el' ++ " no es un entero"))
                     return $ TInt RW
             MinusOp ->do
-                     C.unlessM (tiposIguales el $ TInt RW) (errorTT p ("Tipo " ++ show el' ++ " no es un entero"))
+                     C.unlessM (tiposIguales el $ TInt RW) (errorTT p ("tipos " ++ show el' ++ " no es un entero"))
                      return $ TInt RW
             TimesOp -> do
-                        C.unlessM (tiposIguales el $ TInt RW) (errorTT p ("Tipo " ++ show el' ++ " no es un entero"))
+                        C.unlessM (tiposIguales el $ TInt RW) (errorTT p ("tipos " ++ show el' ++ " no es un entero"))
                         return $ TInt RW
             DivideOp -> do  
-                    C.unlessM (tiposIguales el $ TInt RW) (errorTT p ("Tipo " ++ show el' ++ " no es un entero"))
+                    C.unlessM (tiposIguales el $ TInt RW) (errorTT p ("tipos " ++ show el' ++ " no es un entero"))
                     return $ TInt RW
             LtOp -> ifM ((tiposIguales el $ TInt RW) <||> (tiposIguales el TString))
                            (return $ TInt RW )
