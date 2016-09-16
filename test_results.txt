@@ -1,6 +1,6 @@
 .
 ├── good
-│   ├── compare-record-and-nil.tig --> se compara record con nil [error (tipos no comparables)]
+│   ├── compare-record-and-nil.tig --> se compara record con nil [error (tipos no comparables) / okOp definia explicitamente que eran incomparables (eso esta bien?)]
 │   ├── fact.tig --> factorial [ok]
 │   ├── local-vs-global-type.tig --> tipos locales esconden tipos globales [ok]
 │   ├── merge.tig 
@@ -9,7 +9,7 @@
 │   ├── recursive-types.tig --> [ok]
 │   ├── test01.tig --> declaracion y uso de sinonimo de tipo array [ok] 
 │   ├── test02.tig --> se usa sinonimo de int e int indistintamente [hanged]
-│   ├── test03.tig --> se declara un tipo record y se usa una varible de ese tipo [error (se intenta asignar varible RO??)]
+│   ├── test03.tig --> se declara un tipo record y se usa una varible de ese tipo [ok/fixed]
 │   ├── test06.tig --> se definen tipos mutuamente recursivos [ok]
 │   ├── test07.tig --> se defines funciones mutuamente recursivas [ok]
 │   ├── test08.tig --> if usado correctamente [ok]
@@ -18,7 +18,7 @@
 │   ├── test30.tig --> se usan sinonimos indistintamente [hanged]
 │   ├── test37.tig --> redefinicion de variables [ok]
 │   ├── test42.tig --> varias declaraciones de tipos [hanged]
-│   ├── test44.tig --> inicializacion de record nil valida [error (se intenta asignar variabl RO??)]
+│   ├── test44.tig --> inicializacion de record nil valida [ok/fixed]
 │   ├── test47.tig --> se redefinen tipos en batch distintos [ok]
 │   ├── test48.tig --> se redefinen funciones en batchs distintos [ok]
 │   ├── test50.tig --> se usa break dentro de un ciclo [ok]
@@ -48,7 +48,7 @@
     ├── test20.tig --> variable no declarada [ok/escap]
     ├── test21.tig --> se usa el valor de retorno de un procedimiento [ok/seman]
     ├── test22.tig --> se accede a un campo no definido de un record [ok/seman]
-    ├── test23.tig --> se asisgna un valor de tipo incorrecto a un campo [error (se intenta asignar una variable RO)/seman]
+    ├── test23.tig --> se asisgna un valor de tipo incorrecto a un campo [ok/fixed]
     ├── test24.tig --> se indexa una variable que no es array [ok/seman]
     ├── test25.tig --> se indexa una variable que no es un record [ok/seman]
     ├── test26.tig --> se compara int con string [ok/seman]
@@ -64,7 +64,5 @@
     ├── test39.tig --> idem 38 con funciones [error]
     ├── test40.tig --> se define una procedimiento y se retorna un valor [ok/seman]
     ├── test43.tig --> se intenta asignar unit a una variable [ok/parser]
-    ├── test45.tig --> se asigna nil a una variable que no tiene signatura de record [error (retorna con tipo Nil)] 
+    ├── test45.tig --> se asigna nil a una variable que no tiene signatura de record [error (retorna con tipo Nil)/ fixed - ahora no pueden declararse varibles sin signatura con Nil] 
     └── test51.tig --> se usa break fuera de un loop [error (retorna tipo unit)]
-
-4 directories, 63 files
