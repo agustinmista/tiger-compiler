@@ -7,6 +7,7 @@ import TigerEnv
 import TigerErrores as E
 import TigerAbs
 import TigerTemp
+import TigerPretty
 
 import qualified Data.Map.Strict as M
 import qualified Control.Monad.State as ST
@@ -23,6 +24,9 @@ import qualified Data.Graph as G
 import qualified Data.Text as T
 
 import Debug.Trace
+
+-- Helper para debug
+debug msg = trace msg (return ())
 
 class (Environmental w, NotFounder w) => Manticore w where
 -- Que compartan el espacio de nombres es decisión de la instancia.
@@ -51,8 +55,10 @@ class (Environmental w, NotFounder w) => Manticore w where
     --
 
     -- Retornar errores de tipos con mensajes 
-    errorTT :: Pos -> String -> w a
-    errorTT p msg = E.error $ internal $ T.pack $ "error de tipos en la posicion " ++ printPos p ++ ":\n\t" ++ msg
+    errorTT :: Pos -> String -> String -> w a
+    errorTT p exp msg = E.error $ internal $ T.pack $ "  en la posicion: " ++ printPos p ++ "\n" ++ 
+                                                      "  en la expresion:\n\t" ++ exp ++ "\n" ++ 
+                                                      "  error de tipos:\n\t" ++ msg
     
     -- DEBUG --
     -- Mostrar el entorno de valores
@@ -67,21 +73,21 @@ class (Environmental w, NotFounder w) => Manticore w where
         case st of
             TRecord _ u1 -> return (u1 == u)
             ls@(RefRecord s') -> tiposIguales ls l
-            _ -> E.error $ internal $ T.pack $ "No son tipos iguales... 123+1"
+            _ -> E.error $ internal $ T.pack $ "no son tipos iguales... 123+1"
     tiposIguales l@(TRecord _ u) (RefRecord s) = do
         st <- getTipoT s
         case st of
             TRecord _ u1 -> return (u1 == u)
             ls@(RefRecord s') -> tiposIguales l ls 
-            _ -> E.error $ internal $ T.pack $ "No son tipos iguales... 123+2"
+            _ -> E.error $ internal $ T.pack $ "no son tipos iguales... 123+2"
     tiposIguales (RefRecord s) (RefRecord s') = do
         s1 <- getTipoT s
         s2 <- getTipoT s'
         tiposIguales s1 s2
     tiposIguales TNil  (RefRecord _) = return True
     tiposIguales (RefRecord _) TNil = return True
-    tiposIguales (RefRecord _) _ = E.error $ internal $ T.pack $ "No son tipos iguales... 123+3"
-    tiposIguales  e (RefRecord s) = E.error $ internal $ T.pack $ "No son tipos iguales... 123+4" ++ (show e ++ show s)
+    tiposIguales (RefRecord _) _ = E.error $ internal $ T.pack $ "no son tipos iguales... 123+3"
+    tiposIguales  e (RefRecord s) = E.error $ internal $ T.pack $ "no son tipos iguales... 123+4" ++ (show e ++ show s)
     tiposIguales a b = return (intiposIguales a b)
     
     -- Generador de identificadores unicos
@@ -109,7 +115,14 @@ class (Environmental w, NotFounder w) => Manticore w where
                 insertTipoT s t 
             ) tp
 
-addpos t p = handle t  (\t -> E.error $ adder t (T.pack $ "error de tipos en la posicion " ++  printPos p ++ "\n"))
+addpos t p vexp = handle t  (\t -> E.error $ adder t (T.pack $ "  en la posicion: " ++  printPos p ++ "\n" ++ 
+                                                               "  en la expresion: \n\t" ++ ppE vexp ++ "\n" ++
+                                                               "  error de tipos: \n\t"))
+
+--addpos t p vexp = handle t  $ \msg -> E.error $ internal $ T.pack $ "  en la posicion: " ++ printPos p ++ "\n" ++ 
+--                                                                    "  error de tipos:\n\t" ++ show msg ++ "\n" ++
+--                                                                    "  en la expresion:\n\t" ++ ppE vexp
+--    
 
 
 -- Un ejemplo de estado que alcanzaría para realizar todas la funciones es:
@@ -214,7 +227,7 @@ instance Manticore Lion where
         case lookupI s venv of
             Nothing -> E.error $ notfound (T.append s (T.pack " getTipoValV/Nothing "))
             Just (Var v) -> return v
-            _ -> E.error $ internal $ T.pack $ "La variable " ++ show s ++ " no es una funcion" 
+            _ -> E.error $ internal $ T.pack $ "la variable " ++ show s ++ " no es una funcion" 
     insertFunV s fentry = do
         venv <- getVEnv `addLer` "insertFunV"
         setVEnv $ insertI s (Func fentry) venv
@@ -223,7 +236,7 @@ instance Manticore Lion where
         case lookupI s venv of
             Nothing -> E.error $ notfound (T.append s (T.pack " getTipoFunV/Nothing "))
             Just (Func f) -> return f
-            _ -> E.error $ internal $ T.pack $ "La variable " ++ show s ++ " no es una funcion"
+            _ -> E.error $ internal $ T.pack $ "la variable " ++ show s ++ " no es una funcion"
     insertTipoT s t = do
         tenv <- getTEnv `addLer` "insertTipoT"
         setTEnv $ insertI s t tenv
@@ -272,13 +285,13 @@ depend (ArrayTy s) = [s]
 depend (RecordTy ts) = concatMap (\(_,_,t) -> depend t) ts
 
 genLabel s p@(Simple l c) u = return $ s <> T.pack ("." ++ show l ++ "." ++ show c ++ "." ++ show u)  
-genLabel s p u = E.error $ internal $ T.pack $ "Error generando el label para " ++ show s ++ " en " ++ printPos p  
+genLabel s p u = E.error $ internal $ T.pack $ "error generando el label para " ++ show s ++ " en " ++ printPos p  
 
 okOp :: Tipo -> Tipo -> Oper -> Bool
-okOp TNil TNil EqOp = False
+okOp TNil TNil EqOp = True -- PREGUNTAR!
 okOp TUnit _ EqOp = False
 okOp _ _ EqOp = True
-okOp TNil TNil NeqOp = False
+okOp TNil TNil NeqOp = True -- PREGUNTAR!
 okOp TUnit _ NeqOp = False
 okOp _ _ NeqOp = True
 
@@ -336,24 +349,25 @@ fromTy _ = P.error "no debería haber una definición de tipos en los args..."
 
 transDec :: (Manticore w) => Dec -> w () -- por ahora...
 transDec (TypeDec ls) = addTypos ls
-transDec (VarDec s mb Nothing init p) = do
+transDec w@(VarDec s mb Nothing init p) = do
     tinit <- transExp init
     case tinit of
+        TNil -> errorTT p (ppD w) "declaracion: se intento asignar Nil a una variable sin signatura de tipo" 
         TInt RO -> insertValV s (TInt RW)
         t -> insertValV s t
 
-transDec (VarDec s mb (Just t) init p) = do
+transDec w@(VarDec s mb (Just t) init p) = do
     tinit <- transExp init
     t' <- getTipoT t
     C.unlessM (tiposIguales t' tinit) 
-        (errorTT p $ "Se esperaba valor de tipo " ++ 
+        (errorTT p (ppD w) $ "se esperaba valor de tipo " ++ 
                            show t' ++ " y se tiene un valor de tipo " ++ show tinit)
     case tinit of
         TInt RO -> insertValV s (TInt RW)
         t -> insertValV s t
    
 
-transDec (FunctionDec fb) = do
+transDec w@(FunctionDec fb) = do
     mapM_ (\(s, flds, ms, e, p) -> do
         u <- ugen
         flds' <- mapM (\(_,_,ty) -> transTy ty) flds
@@ -369,119 +383,119 @@ transDec (FunctionDec fb) = do
        setRPoint
        mapM_ (\((s,_,_),t) -> insertValV s t) (zip flds ts)
        e' <- transExp e
-       C.unlessM (tiposIguales e' tr) (errorTT p $ "Se esperaba que el tipo del cuerpo de la funcion " ++
-                                                   show s ++ " fuera " ++ show tr ++ " y se tiene " ++ show e')
+       C.unlessM (tiposIguales e' tr) (errorTT p (ppD w) $ "se esperaba que el tipo del cuerpo de la funcion " ++
+                                                            show s ++ " fuera " ++ show tr ++ " y se tiene " ++ show e')
        restoreRPoint
        ) fb
      
 transExp :: (Manticore w) => Exp -> w Tipo
-transExp (VarExp v p) = addpos (transVar v) p
+transExp w@(VarExp v p) = addpos (transVar v) p w
 transExp (UnitExp {}) = return TUnit
 transExp (NilExp {}) = return TNil
 transExp (IntExp {}) = return $ TInt RW
 transExp (StringExp {}) = return TString
-transExp (CallExp nm args p) = do 
+transExp w@(CallExp nm args p) = do 
         (_,_,ts,tr,_) <- getTipoFunV nm
-        C.unless (P.length ts == P.length args) $ errorTT p $ "llamada a funcion " ++ T.unpack nm ++ ": numero de argumentos erroneo"
+        C.unless (P.length ts == P.length args) $ errorTT p (ppE w) $ "llamada a funcion " ++ T.unpack nm ++ ": numero de argumentos erroneo"
         let checkTypes t e = do -- armo una función que compara un tipo esperado con el
             t' <- transExp e    -- calculado recursivamente, sale con error si falla
             ifM (tiposIguales t t') (return t)
-                (errorTT p $ "llamada a funcion " ++ T.unpack nm ++ ": tipo de argumento invalido, se esperaba "
+                (errorTT p (ppE w) $ "llamada a funcion " ++ T.unpack nm ++ ": tipo de argumento invalido, se esperaba "
                            ++ show t ++ " pero se encontro " ++ show t')
         types <- zipWithM checkTypes ts args
         return tr
-transExp (OpExp el' oper er' p) = do -- Esta va gratis
+transExp w@(OpExp el' oper er' p) = do -- Esta va gratis
         el <- transExp el'
         er <- transExp er'
-        C.unlessM (tiposIguales el er) (errorTT p ("tipos " ++ show el ++ " y " ++ show er ++ " no son comparables"))
+        C.unlessM (tiposIguales el er) (errorTT p (ppE w) ("tipos " ++ show el ++ " y " ++ show er ++ " no son comparables"))
         case oper of
             EqOp  -> do
-                    C.unless (okOp el er oper) (errorTT p ("tipos " ++ show el ++ " y " ++ show er ++ "no son comparables mediante " ++ show oper))
+                    C.unless (okOp el er oper) (errorTT p (ppE w) ("tipos " ++ show el ++ " y " ++ show er ++ " no son comparables mediante " ++ show oper))
                     return $ TInt RW
             NeqOp -> do
-                    C.unless (okOp el er oper) (errorTT p ("tipos " ++ show el ++ " y " ++ show er ++ "no son comparables mediante " ++ show oper))
+                    C.unless (okOp el er oper) (errorTT p (ppE w) ("tipos " ++ show el ++ " y " ++ show er ++ " no son comparables mediante " ++ show oper))
                     return $ TInt RW
             PlusOp -> do
-                    C.unlessM (tiposIguales el $ TInt RW) (errorTT p ("tipos " ++ show el' ++ " no es un entero"))
+                    C.unlessM (tiposIguales el $ TInt RW) (errorTT p (ppE w) ("tipos " ++ show el' ++ " no es un entero"))
                     return $ TInt RW
             MinusOp ->do
-                     C.unlessM (tiposIguales el $ TInt RW) (errorTT p ("tipos " ++ show el' ++ " no es un entero"))
+                     C.unlessM (tiposIguales el $ TInt RW) (errorTT p (ppE w) ("tipos " ++ show el' ++ " no es un entero"))
                      return $ TInt RW
             TimesOp -> do
-                        C.unlessM (tiposIguales el $ TInt RW) (errorTT p ("tipos " ++ show el' ++ " no es un entero"))
+                        C.unlessM (tiposIguales el $ TInt RW) (errorTT p (ppE w) ("tipos " ++ show el' ++ " no es un entero"))
                         return $ TInt RW
             DivideOp -> do  
-                    C.unlessM (tiposIguales el $ TInt RW) (errorTT p ("tipos " ++ show el' ++ " no es un entero"))
+                    C.unlessM (tiposIguales el $ TInt RW) (errorTT p (ppE w) ("tipos " ++ show el' ++ " no es un entero"))
                     return $ TInt RW
             LtOp -> ifM ((tiposIguales el $ TInt RW) <||> (tiposIguales el TString))
                            (return $ TInt RW )
-                           (errorTT p ("Elementos de tipo" ++ show el ++ "no son comparables"))
+                           (errorTT p (ppE w) ("elementos de tipo" ++ show el ++ " no son comparables"))
             LeOp -> ifM ((tiposIguales el $ TInt RW) <||> (tiposIguales el TString))
                            (return $ TInt RW)
-                           (errorTT p ("Elementos de tipo" ++ show el ++ "no son comparables"))
+                           (errorTT p (ppE w) ("elementos de tipo" ++ show el ++ " no son comparables"))
             GtOp -> ifM ((tiposIguales el $ TInt RW) <||> (tiposIguales el TString))
                             (return $ TInt RW )
-                            (errorTT p ("Elementos de tipo" ++ show el ++ "no son comparables"))
+                            (errorTT p (ppE w) ("elementos de tipo" ++ show el ++ " no son comparables"))
             GeOp -> ifM ((tiposIguales el $ TInt RW) <||> (tiposIguales el TString))
                             (return $ TInt RW) 
-                            (errorTT p ("Elementos de tipo" ++ show el ++ "no son comparables"))
+                            (errorTT p (ppE w) ("elementos de tipo" ++ show el ++ " no son comparables"))
 
-transExp (RecordExp flds rt p) = do  -- Se debe respetar el orden de los efectos
+transExp w@(RecordExp flds rt p) = do  -- Se debe respetar el orden de los efectos
     rType <- getTipoT rt  -- busco el tipo de record en el entorno
     case rType of
         TRecord decFlds _ -> do
                 typedFlds <- mapM (\(s, e) -> transExp e >>= \et -> return (s, et)) flds -- encuentro el tipo de cada field
                 let sortedFlds = sortBy (comparing fst) typedFlds   -- ordeno los campos tipados, suponiendo que fueron parseados en orden
                 ifM (cmpZip sortedFlds decFlds) (return rType)      -- comparo que cada campo encontrado tenga el tipo que fue declarado 
-                    (errorTT p $ "Record invalido, se esperaba: " ++ show decFlds
+                    (errorTT p (ppE w) $ "record invalido, se esperaba: " ++ show decFlds
                                ++ " pero se encontro: " ++ show typedFlds)
-        _ -> errorTT p $ "Se esperaba un record, pero se encontro: " ++ show rt
+        _ -> errorTT p (ppE w) $ "se esperaba un record, pero se encontro: " ++ show rt
 
-transExp(SeqExp es p) = do -- Va gratis
+transExp (SeqExp es p) = do -- Va gratis
         es' <- mapM transExp es
         return $ last es'
 
-transExp(AssignExp var val p) = do
+transExp w@(AssignExp var exp p) = do
     var' <- transVar var
-    tmp <- tiposIguales var' (TInt RO)
-    trace (show tmp) (return ())
-   -- C.unlessM (tiposIguales var' $ TInt RO) $ errorTT p "asignacion: Se intento asignar una variable RO"
-    val' <- transExp val
-    C.unlessM (tiposIguales var' val') $ errorTT p ("asignacion: se esperaba valor de tipo "
-                                          ++ show var' ++ " y se tiene valor de tipo " ++ show val')
-    return TUnit    
+    exp' <- transExp exp
+    matches <- tiposIguales var' exp'
+    if not matches
+        then errorTT p (ppE w) $ "asignacion: se esperaba valor de tipo " ++ show var' ++ " y se tiene valor de tipo " ++ show exp'
+        else if var' == (TInt RO)
+            then errorTT p (ppE w) "asignacion: se intento asignar una variable RO"
+            else return TUnit
 
-transExp(IfExp co th Nothing p) = do
+transExp w@(IfExp co th Nothing p) = do
         co' <- transExp co
-        C.unlessM (tiposIguales co' $ TInt RW) $ errorTT p $ "if: la condicion no es de tipo " ++ show (TInt RW)
+        C.unlessM (tiposIguales co' $ TInt RW) $ errorTT p (ppE w) $ "if: la condicion no es de tipo " ++ show (TInt RW)
         th' <- transExp th
-        C.unlessM (tiposIguales th' TUnit) $ errorTT p $ "if: el cuerpo no es de tipo " ++ show TUnit
+        C.unlessM (tiposIguales th' TUnit) $ errorTT p (ppE w) $ "if: el cuerpo no es de tipo " ++ show TUnit
         return TUnit
 
-transExp(IfExp co th (Just el) p) = do 
+transExp w@(IfExp co th (Just el) p) = do 
         co' <- transExp co
-        C.unlessM (tiposIguales co' $ TInt RW) $ errorTT p $ "if: la condicion no es de tipo " ++ show (TInt RW)
+        C.unlessM (tiposIguales co' $ TInt RW) $ errorTT p (ppE w) $ "if: la condicion no es de tipo " ++ show (TInt RW)
         th' <- transExp th
         el' <- transExp el
-        C.unlessM (tiposIguales th' el') $ errorTT p "if: las ramas tienen distinto tipo"
+        C.unlessM (tiposIguales th' el') $ errorTT p (ppE w) "if: las ramas tienen distinto tipo"
         return th'
 
-transExp(WhileExp co body p) = do
+transExp w@(WhileExp co body p) = do
         co' <- transExp co
-        C.unlessM (tiposIguales co' $ TInt RW) $ errorTT p $ "while: la condicion no es de tipo " ++ show (TInt RW)
+        C.unlessM (tiposIguales co' $ TInt RW) $ errorTT p (ppE w) $ "while: la condicion no es de tipo " ++ show (TInt RW)
         body' <- transExp body
-        C.unlessM (tiposIguales body' TUnit) $ errorTT p $ "while: el cuerpo no es de tipo " ++ show TUnit
+        C.unlessM (tiposIguales body' TUnit) $ errorTT p (ppE w) $ "while: el cuerpo no es de tipo " ++ show TUnit
         return TUnit
 
-transExp(ForExp nv mb lo hi bo p) = do
+transExp w@(ForExp nv mb lo hi bo p) = do
         lo' <- transExp lo
-        C.unlessM (tiposIguales lo' $ TInt RW) $ errorTT p $ "for: la cota inferior no es de tipo " ++ show (TInt RW)
+        C.unlessM (tiposIguales lo' $ TInt RW) $ errorTT p (ppE w) $ "for: la cota inferior no es de tipo " ++ show (TInt RW)
         hi' <- transExp hi
-        C.unlessM (tiposIguales hi' $ TInt RW) $ errorTT p $ "for: la cota superior no es de tipo " ++ show (TInt RW)
+        C.unlessM (tiposIguales hi' $ TInt RW) $ errorTT p (ppE w) $ "for: la cota superior no es de tipo " ++ show (TInt RW)
         setRPoint 
         insertVRO nv (TInt RO)
         bo' <- transExp bo
-        C.unlessM (tiposIguales bo' $ TUnit) $ errorTT p $ "for: el cuerpo no es de tipo " ++ show TUnit
+        C.unlessM (tiposIguales bo' $ TUnit) $ errorTT p (ppE w) $ "for: el cuerpo no es de tipo " ++ show TUnit
         restoreRPoint
         return TUnit
 
@@ -494,15 +508,15 @@ transExp(LetExp dcs body p) = do -- Va gratis...
 
 transExp(BreakExp p) = return TUnit -- Va gratis ;)
 
-transExp(ArrayExp sn cant init p) = do
+transExp w@(ArrayExp sn cant init p) = do
         sn' <- getTipoT sn
         init' <- transExp init
         cant' <- transExp cant
-        C.unlessM (tiposIguales cant' (TInt RW)) $ errorTT p $ "array: el tamaño no es de tipo " ++ show (TInt RW) 
+        C.unlessM (tiposIguales cant' (TInt RW)) $ errorTT p (ppE w) $ "array: el tamaño no es de tipo " ++ show (TInt RW) 
         case sn' of
             TArray t _ -> do
-                C.unlessM (tiposIguales t init') $ errorTT p $ "array: se declaro de tipo " ++ show t ++ " y se lo intento inicializar con tipo " ++ show init'
+                C.unlessM (tiposIguales t init') $ errorTT p (ppE w) $ "array: se declaro de tipo " ++ show t ++ " y se lo intento inicializar con tipo " ++ show init'
                 return sn' 
-            x -> errorTT p $ "Error de tipos en el array: el tipo " ++ show x ++  " no es un array"
+            x -> errorTT p (ppE w) $ "array: el tipo " ++ show x ++  " no es un array"
 
 

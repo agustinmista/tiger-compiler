@@ -6,6 +6,11 @@ import Data.Text (unpack)
 import Text.PrettyPrint
 import Data.List 
 
+-- Sinonimos cortos
+ppV = render . prettyVar
+ppD = render . prettyDec
+ppE = render . prettyExp
+
 tabWidth = 4 
 
 -- sinonimos
