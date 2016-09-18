@@ -3,7 +3,7 @@
 │   ├── compare-record-and-nil.tig --> se compara record con nil [error (tipos no comparables) / okOp definia explicitamente que eran incomparables (eso esta bien?)]
 │   ├── fact.tig --> factorial [ok]
 │   ├── local-vs-global-type.tig --> tipos locales esconden tipos globales [ok]
-│   ├── merge.tig 
+│   ├── merge.tig --> [ok]
 │   ├── queens.tig --> [ok]
 │   ├── recursive-comments.tig --> [ok]
 │   ├── recursive-types.tig --> [ok]
@@ -24,7 +24,7 @@
 │   ├── test50.tig --> se usa break dentro de un ciclo [ok]
 │   └── three-name-spaces.tig --> [ok]
 ├── propios
-│   ├── ej2.tig
+│   ├── ej2.tig   --> [arreglado el código tiger que estaba mal y errores al imprimir posiciones ]
 │   ├── ej3.tig
 │   ├── helloworld.tig
 │   ├── testArray.tig

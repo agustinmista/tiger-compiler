@@ -456,7 +456,7 @@ transExp (SeqExp es p) = do -- Va gratis
         return $ last es'
 
 transExp w@(AssignExp var exp p) = do
-    var' <- transVar var
+    var' <- addpos (transVar var) p w
     exp' <- transExp exp
     matches <- tiposIguales var' exp'
     if not matches
