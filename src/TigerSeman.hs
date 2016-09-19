@@ -288,10 +288,10 @@ genLabel s p@(Simple l c) u = return $ s <> T.pack ("." ++ show l ++ "." ++ show
 genLabel s p u = E.error $ internal $ T.pack $ "error generando el label para " ++ show s ++ " en " ++ printPos p  
 
 okOp :: Tipo -> Tipo -> Oper -> Bool
-okOp TNil TNil EqOp = True -- PREGUNTAR!
+okOp TNil TNil EqOp = False
 okOp TUnit _ EqOp = False
 okOp _ _ EqOp = True
-okOp TNil TNil NeqOp = True -- PREGUNTAR!
+okOp TNil TNil NeqOp = False
 okOp TUnit _ NeqOp = False
 okOp _ _ NeqOp = True
 
@@ -362,10 +362,7 @@ transDec w@(VarDec s mb (Just t) init p) = do
     C.unlessM (tiposIguales t' tinit) 
         (errorTT p (ppD w) $ "se esperaba valor de tipo " ++ 
                            show t' ++ " y se tiene un valor de tipo " ++ show tinit)
-    case tinit of
-        TInt RO -> insertValV s (TInt RW)
-        t -> insertValV s t
-   
+    insertValV s t' -- el tipo que insertamos es el dado por el usuario  
 
 transDec w@(FunctionDec fb) = do
     mapM_ (\(s, flds, ms, e, p) -> do

@@ -87,9 +87,9 @@ printPrettyAst ast = do
 
 printSourceCode src = do
     putStrLn "**** input source code begin ****"
-    putStrLn src
+    putStrLn $ unlines $ zipWith (\l t -> show l ++ "|" ++ t) [1..] $ lines src 
     putStrLn "**** input source code end ****\n"
-
+    
     
 -- Helpers para desempaquetar either
 fromLeft :: Either a b -> a
