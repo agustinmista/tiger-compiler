@@ -51,6 +51,7 @@ int = do
     t <- number
     return (IntExp t pos)
 
+
 v' :: Var -> Parser Var
 v' var = (do
             dot
@@ -61,6 +62,19 @@ v' var = (do
             e <- brackets expression
             v' (SubscriptVar var e))
             <|> return var
+--v' :: Var -> Parser Var
+--v' var = (do
+--            e <- brackets expression
+--            v' (SubscriptVar var e))
+--       <|> field' var
+--       <|> return var
+--
+--field' var = chainl v' (do 
+--                dot
+--                s <- identifier
+--                v' (FieldVar var (pack s)))
+--
+
 
 variable :: Parser Var
 variable = do

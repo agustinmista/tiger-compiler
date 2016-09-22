@@ -16,9 +16,9 @@ import Data.Monoid
 import Control.Arrow
 import Control.Monad.Except
 import Control.Conditional as C
-import Data.List as List
+import Data.List
 import Data.Ord
-import Prelude as P 
+import Prelude as P hiding (foldl') 
 
 import qualified Data.Graph as G
 import qualified Data.Text as T
@@ -27,6 +27,12 @@ import Debug.Trace
 
 -- Helper para debug
 debug msg = trace msg (return ())
+
+remDup :: Ord a => [a] -> [a]
+remDup = concat . filterByLength (==1)
+
+filterByLength :: Ord a => (Int -> Bool) -> [a] -> [[a]]
+filterByLength p = filter (p . length) . group . sort
 
 class (Environmental w, NotFounder w) => Manticore w where
 -- Que compartan el espacio de nombres es decisión de la instancia.
@@ -100,21 +106,25 @@ class (Environmental w, NotFounder w) => Manticore w where
     addTypos :: [(Symbol, Ty, Pos)] -> w () 
     addTypos dls = 
         let 
-            (rs, ms) = List.foldl' (\(ds, ms) (s,ss, p) -> ((s,s, depend ss): ds , (s,(ss,p)) : ms)) ([],[]) dls
+            (rs, ms) = foldl' (\(ds, ms) (s,ss, p) -> ((s,s, depend ss): ds , (s,(ss,p)) : ms)) ([],[]) dls
             (g, f, _) = G.graphFromEdges rs
             dls' = M.fromList ms
             tp = G.topSort g
-        in do
-        mapM_ (\(s,ty,p) -> case ty of
-                        RecordTy {} -> insertTipoT s (RefRecord s)
-                        _ -> return ()) dls
-        mapM_ (\x -> do
-                let (s,_ ,_) = f x
-                let (ty,p) = dls' M.! s 
-                t <- handle (transTy ty) (\t -> E.error $ adder t $ T.append s $ T.pack " -- CICLO DETECTADO!") -- Mejorar el error?
-                insertTipoT s t 
-            ) tp
-
+            symbols = map (\(x,_,_) -> x) dls
+        in if length symbols /= length (remDup symbols)
+            then E.error $ internal $ T.pack " declaraciones de tipos repetidas en el batch"
+            else do
+                mapM_ (\(s,ty,p) -> case ty of
+                                RecordTy {} -> insertTipoT s (RefRecord s)
+                                _ -> return ()) dls
+                mapM_ (\x -> do
+                        let (s,_ ,_) = f x
+                        let (ty,p) = dls' M.! s 
+                        t <- handle (transTy ty) (\t -> E.error $ adder t $ T.append s $ T.pack " -- CICLO DETECTADO!") -- Mejorar el error?
+                        insertTipoT s t 
+                        debug $ show s ++  " <-> " ++ show t
+                    ) tp
+        
 addpos t p vexp = handle t  (\t -> E.error $ adder t (T.pack $ "  en la posicion: " ++  printPos p ++ "\n" ++ 
                                                                "  en la expresion: \n\t" ++ ppE vexp ++ "\n" ++
                                                                "  error de tipos: \n\t"))
@@ -348,7 +358,7 @@ fromTy (NameTy s) = getTipoT s
 fromTy _ = P.error "no debería haber una definición de tipos en los args..."
 
 transDec :: (Manticore w) => Dec -> w () -- por ahora...
-transDec (TypeDec ls) = addTypos ls
+transDec w@(TypeDec ls) = addTypos ls  
 transDec w@(VarDec s mb Nothing init p) = do
     tinit <- transExp init
     case tinit of
@@ -364,26 +374,31 @@ transDec w@(VarDec s mb (Just t) init p) = do
                            show t' ++ " y se tiene un valor de tipo " ++ show tinit)
     insertValV s t' -- el tipo que insertamos es el dado por el usuario  
 
-transDec w@(FunctionDec fb) = do
-    mapM_ (\(s, flds, ms, e, p) -> do
-        u <- ugen
-        flds' <- mapM (\(_,_,ty) -> transTy ty) flds
-        label <- genLabel s p u
-        case ms of
-            Nothing -> insertFunV s  (u, label, flds', TUnit, False)      
-            Just rt -> do
-                rt' <- getTipoT rt
-                insertFunV s (u, label, flds', rt', False)
-        ) fb  
-    mapM_ (\(s, flds, ms, e, p) -> do
-       (u,label,ts,tr,_) <- getTipoFunV s
-       setRPoint
-       mapM_ (\((s,_,_),t) -> insertValV s t) (zip flds ts)
-       e' <- transExp e
-       C.unlessM (tiposIguales e' tr) (errorTT p (ppD w) $ "se esperaba que el tipo del cuerpo de la funcion " ++
-                                                            show s ++ " fuera " ++ show tr ++ " y se tiene " ++ show e')
-       restoreRPoint
-       ) fb
+transDec w@(FunctionDec fb) =
+    let symbols = map (\(s,_,_,_,_) -> s) fb
+        (_,_,_,_, p) = head fb 
+    in if length symbols /= length (remDup symbols) 
+        then errorTT p (ppD w) $ "identificadores de funcion repetidos en un mismo batch"
+        else do 
+            mapM_ (\(s, flds, ms, e, p) -> do
+                u <- ugen
+                flds' <- mapM (\(_,_,ty) -> transTy ty) flds
+                label <- genLabel s p u
+                case ms of
+                    Nothing -> insertFunV s  (u, label, flds', TUnit, False)      
+                    Just rt -> do
+                        rt' <- getTipoT rt
+                        insertFunV s (u, label, flds', rt', False)
+                ) fb  
+            mapM_ (\(s, flds, ms, e, p) -> do
+               (u,label,ts,tr,_) <- getTipoFunV s
+               setRPoint
+               mapM_ (\((s,_,_),t) -> insertValV s t) (zip flds ts)
+               e' <- transExp e
+               C.unlessM (tiposIguales e' tr) (errorTT p (ppD w) $ "se esperaba que el tipo del cuerpo de la funcion " ++
+                                                                    show s ++ " fuera " ++ show tr ++ " y se tiene " ++ show e')
+               restoreRPoint
+               ) fb
      
 transExp :: (Manticore w) => Exp -> w Tipo
 transExp w@(VarExp v p) = addpos (transVar v) p w
