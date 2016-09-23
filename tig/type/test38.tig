@@ -4,6 +4,8 @@
 let
 	type a = int
 	type a = string
+    type b = string
+    type b = int
 in
 	0
 end

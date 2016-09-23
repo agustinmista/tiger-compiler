@@ -63,9 +63,9 @@ class (Environmental w, NotFounder w) => Manticore w where
     -- Retornar errores de tipos con mensajes 
     errorTT :: Pos -> String -> String -> w a
     errorTT p exp msg = E.error $ internal $ T.pack $ "  en la posicion: " ++ printPos p ++ "\n" ++ 
-                                                      "  en la expresion:\n\t" ++ exp ++ "\n" ++ 
+                                                      "  en la expresion:\n" ++ tabbedExp ++ 
                                                       "  error de tipos:\n\t" ++ msg
-    
+                                                                where tabbedExp = unlines $ map ("\t"++) $ lines exp
     -- DEBUG --
     -- Mostrar el entorno de valores
     showVEnv :: w ()
@@ -112,7 +112,9 @@ class (Environmental w, NotFounder w) => Manticore w where
             tp = G.topSort g
             symbols = map (\(x,_,_) -> x) dls
         in if length symbols /= length (remDup symbols)
-            then E.error $ internal $ T.pack " declaraciones de tipos repetidas en el batch"
+            then let dupTypes = map (show . T.unpack . head) $ filterByLength (>1) symbols
+                     listedDups = intercalate "," dupTypes
+                 in E.error $ internal $ T.pack $ "declaraciones de tipos " ++ listedDups ++ " repetidas en el batch"
             else do
                 mapM_ (\(s,ty,p) -> case ty of
                                 RecordTy {} -> insertTipoT s (RefRecord s)
@@ -122,12 +124,12 @@ class (Environmental w, NotFounder w) => Manticore w where
                         let (ty,p) = dls' M.! s 
                         t <- handle (transTy ty) (\t -> E.error $ adder t $ T.append s $ T.pack " -- CICLO DETECTADO!") -- Mejorar el error?
                         insertTipoT s t 
-                        debug $ show s ++  " <-> " ++ show t
                     ) tp
         
-addpos t p vexp = handle t  (\t -> E.error $ adder t (T.pack $ "  en la posicion: " ++  printPos p ++ "\n" ++ 
-                                                               "  en la expresion: \n\t" ++ ppE vexp ++ "\n" ++
-                                                               "  error de tipos: \n\t"))
+addpos t p exp = handle t  (\t -> E.error $ adder t (T.pack $ "  en la posicion: " ++  printPos p ++ "\n" ++ 
+                                                              "  en la expresion: \n" ++ tabbedExp ++
+                                                              "  error de tipos: \n\t"))
+                                                                    where tabbedExp = unlines $ map ("\t"++) $ lines exp
 
 --addpos t p vexp = handle t  $ \msg -> E.error $ internal $ T.pack $ "  en la posicion: " ++ printPos p ++ "\n" ++ 
 --                                                                    "  error de tipos:\n\t" ++ show msg ++ "\n" ++
@@ -358,7 +360,8 @@ fromTy (NameTy s) = getTipoT s
 fromTy _ = P.error "no debería haber una definición de tipos en los args..."
 
 transDec :: (Manticore w) => Dec -> w () -- por ahora...
-transDec w@(TypeDec ls) = addTypos ls  
+transDec w@(TypeDec ls) = let (_,_,p) = head ls
+                          in addpos (addTypos ls) p (ppD w) 
 transDec w@(VarDec s mb Nothing init p) = do
     tinit <- transExp init
     case tinit of
@@ -374,11 +377,15 @@ transDec w@(VarDec s mb (Just t) init p) = do
                            show t' ++ " y se tiene un valor de tipo " ++ show tinit)
     insertValV s t' -- el tipo que insertamos es el dado por el usuario  
 
+            --then let dupTypes = map (show . T.unpack . head) $ filterByLength (>1) symbols
+              --       listedDups = intercalate "," dupTypes
 transDec w@(FunctionDec fb) =
     let symbols = map (\(s,_,_,_,_) -> s) fb
-        (_,_,_,_, p) = head fb 
+        (_,_,_,_,p) = head fb 
     in if length symbols /= length (remDup symbols) 
-        then errorTT p (ppD w) $ "identificadores de funcion repetidos en un mismo batch"
+        then let dupFuncs =  map (show . T.unpack . head) $ filterByLength (>1) symbols
+                 listedDups = intercalate "," dupFuncs   
+             in errorTT p (ppD w) $ "identificadores de funcion " ++ listedDups ++ " repetidos en un mismo batch"
         else do 
             mapM_ (\(s, flds, ms, e, p) -> do
                 u <- ugen
@@ -401,7 +408,7 @@ transDec w@(FunctionDec fb) =
                ) fb
      
 transExp :: (Manticore w) => Exp -> w Tipo
-transExp w@(VarExp v p) = addpos (transVar v) p w
+transExp w@(VarExp v p) = addpos (transVar v) p (ppE w) 
 transExp (UnitExp {}) = return TUnit
 transExp (NilExp {}) = return TNil
 transExp (IntExp {}) = return $ TInt RW
@@ -468,7 +475,7 @@ transExp (SeqExp es p) = do -- Va gratis
         return $ last es'
 
 transExp w@(AssignExp var exp p) = do
-    var' <- addpos (transVar var) p w
+    var' <- addpos (transVar var) p (ppE w)
     exp' <- transExp exp
     matches <- tiposIguales var' exp'
     if not matches

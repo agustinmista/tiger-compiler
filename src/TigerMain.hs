@@ -86,11 +86,20 @@ printPrettyAst ast = do
     putStrLn "**** pretty ast end ****\n"
 
 printSourceCode src = do
+    let srcLines = lines src
+        maxWidth = length $ digs $ length srcLines
+        padNumber n = take (maxWidth - (length $ digs n)) [' ', ' '..] ++ show n
     putStrLn "**** input source code begin ****"
-    putStrLn $ unlines $ zipWith (\l t -> show l ++ "|" ++ t) [1..] $ lines src 
+    putStrLn $ unlines $ zipWith (\l t -> padNumber l ++ "|" ++ t) [1..] $ lines src 
     putStrLn "**** input source code end ****\n"
-    
-    
+   
+
+
+digs :: Int -> [Int]
+digs 0 = []
+digs x = digs (x `div` 10) ++ [x `mod` 10]  
+
+
 -- Helpers para desempaquetar either
 fromLeft :: Either a b -> a
 fromLeft (Left x) = x
