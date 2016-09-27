@@ -26,11 +26,11 @@
 ├── propios
 │   ├── ej2.tig   --> [arreglado el código tiger que estaba mal y errores al imprimir posiciones ]
 │   ├── ej3.tig
-│   ├── helloworld.tig
-│   ├── testArray.tig
-│   └── test.tig
+│   ├── helloworld.tig --> [ok]
+│   ├── testArray.tig --> [ok]
+│   └── test.tig --> [ok]
 ├── syntax
-│   └── typeid.tig
+│   └── typeid.tig --> Tira un error de parseo (n inesperada). No sé si es el error correcto.
 └── type
     ├── assign-loop-var.tig --> se escribe en una variable RO [error (termina con tipo unit) / fixed]
     ├── fun-vs-var.tig --> [ok]
@@ -86,4 +86,7 @@ type
 No miré la carpeta syntax ni la carpeta propios.
 
 
+propios
+|-> ej3. Tira error de tipos. Dice que la variable es de tipo record ref cuando debería ser record.
+         No me acuerdo si eso lo habíamos probado, arriba no dice nada.
 
