@@ -16,4 +16,3 @@ addLer c t = handle c (\e -> error $ adder e (T.pack t))
 
 class (Deamon w) => NotFounder w where
     notfound :: T.Text -> Error w 
-

@@ -121,20 +121,15 @@ class (Environmental w, NotFounder w) => Manticore w where
                                 _ -> return ()) dls
                 mapM_ (\x -> do
                         let (s,_ ,_) = f x
-                        let (ty,p) = dls' M.! s 
-                        t <- handle (transTy ty) (\t -> E.error $ adder t $ T.append s $ T.pack " -- CICLO DETECTADO!") -- Mejorar el error?
+                        let (ty,p) = dls' M.! s
+                        t <- handle (transTy ty) (\t -> E.error $  internal $ T.pack $ "se encontraron dependencias ciclicas")
                         insertTipoT s t 
                     ) tp
         
 addpos t p exp = handle t  (\t -> E.error $ adder t (T.pack $ "  en la posicion: " ++  printPos p ++ "\n" ++ 
-                                                              "  en la expresion: \n" ++ tabbedExp ++
-                                                              "  error de tipos: \n\t"))
+                                                              "  en la expresion:\n" ++ tabbedExp ++
+                                                              "  error de tipos:\n\t"))
                                                                     where tabbedExp = unlines $ map ("\t"++) $ lines exp
-
---addpos t p vexp = handle t  $ \msg -> E.error $ internal $ T.pack $ "  en la posicion: " ++ printPos p ++ "\n" ++ 
---                                                                    "  error de tipos:\n\t" ++ show msg ++ "\n" ++
---                                                                    "  en la expresion:\n\t" ++ ppE vexp
---    
 
 
 -- Un ejemplo de estado que alcanzaría para realizar todas la funciones es:
@@ -200,7 +195,7 @@ instance Deamon Lion where
 
 -- Tambien debo mostrar que el leon a veces se muere de hambre
 instance NotFounder Lion where
-    notfound = E.notfound
+    notfound = E . NotFound
 
 -- Tambien hace falta mostrar que Lion puede usar una lista como un stack
 instance Stacker Lion where
@@ -339,7 +334,7 @@ transVar (SubscriptVar v e) = do
             x -> E.error $ internal $ T.pack $ "array: la variable no tiene tipo array sino " ++ show x 
 
 transTy :: (Manticore w) => Ty -> w Tipo
-transTy (NameTy s) = getTipoT s 
+transTy (NameTy s) = getTipoT s
 transTy (ArrayTy s) = do
         u <- ugen
         t <- getTipoT s
