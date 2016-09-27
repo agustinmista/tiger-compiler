@@ -116,16 +116,20 @@ class (Environmental w, NotFounder w) => Manticore w where
                      listedDups = intercalate "," dupTypes
                  in E.error $ internal $ T.pack $ "declaraciones de tipos " ++ listedDups ++ " repetidas en el batch"
             else do
+                debug $ "TopSort " ++ show tp
                 mapM_ (\(s,ty,p) -> case ty of
                                 RecordTy {} -> insertTipoT s (RefRecord s)
                                 _ -> return ()) dls
                 mapM_ (\x -> do
                         let (s,_ ,_) = f x
                         let (ty,p) = dls' M.! s
+                        debug $ "Antes de handle con ty: " ++ show ty
                         t <- handle (transTy ty) (\t -> E.error $  internal $ T.pack $ "se encontraron dependencias ciclicas")
                         insertTipoT s t 
                     ) tp
         
+
+
 addpos t p exp = handle t  (\t -> E.error $ adder t (T.pack $ "  en la posicion: " ++  printPos p ++ "\n" ++ 
                                                               "  en la expresion:\n" ++ tabbedExp ++
                                                               "  error de tipos:\n\t"))
@@ -334,10 +338,14 @@ transVar (SubscriptVar v e) = do
             x -> E.error $ internal $ T.pack $ "array: la variable no tiene tipo array sino " ++ show x 
 
 transTy :: (Manticore w) => Ty -> w Tipo
-transTy (NameTy s) = getTipoT s
+transTy (NameTy s) = do debug $ "getTipoT " ++ show s
+                        t <- getTipoT s
+                        debug $ "Type " ++ show s ++ " -> " ++ show t
+                        return t
 transTy (ArrayTy s) = do
         u <- ugen
         t <- getTipoT s
+        debug $ "Tipo array " ++ show s ++ " -> " ++ show t
         return $ TArray t u 
 transTy (RecordTy flds) = do 
         let sortedFlds = sortBy (comparing (\(s,_,_)->s)) flds
@@ -346,6 +354,7 @@ transTy (RecordTy flds) = do
                             t' <- transTy t
                             return (s, t', n)) zippedFlds
         u <- ugen
+        debug $ "Tipo record " ++ show flds ++ " -> " ++ show typedFlds
         return $ TRecord typedFlds u
 
 
@@ -356,7 +365,8 @@ fromTy _ = P.error "no debería haber una definición de tipos en los args..."
 
 transDec :: (Manticore w) => Dec -> w () -- por ahora...
 transDec w@(TypeDec ls) = let (_,_,p) = head ls
-                          in addpos (addTypos ls) p (ppD w) 
+                          in do debug $ "transDec con " ++ show ls  
+                                addpos (addTypos ls) p (ppD w) 
 transDec w@(VarDec s mb Nothing init p) = do
     tinit <- transExp init
     case tinit of
