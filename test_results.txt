@@ -66,3 +66,24 @@
     ├── test43.tig --> se intenta asignar unit a una variable [ok/parser]
     ├── test45.tig --> se asigna nil a una variable que no tiene signatura de record [error (retorna con tipo Nil)/ fixed - ahora no pueden declararse varibles sin signatura con Nil] 
 *   └── test51.tig --> se usa break fuera de un loop [error (retorna tipo unit)]
+
+
+Tests que dejaron de andar:
+
+good
+|-> 2. Encuentra una dependencia cíclica cuando declaramos sinonimos de tipos
+|-> 30. Falla lo mismo que esta fallando en 2-
+|-> 42. Falla lo mismo que esta fallando en 2-
+
+type
+|-> 17. Creo que el error que mostramos no es el correcto. 
+        Falla lo mismo que esta fallando en 2?
+|-> 18  Creo que el error que mostramos no es el correcto. 
+|-> 33  Falla el parser, debería ser error semántico?
+|-> 43  Falla el parser, debería ser error semántico?
+
+
+No miré la carpeta syntax ni la carpeta propios.
+
+
+
