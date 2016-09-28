@@ -116,21 +116,19 @@ class (Environmental w, NotFounder w) => Manticore w where
                      listedDups = intercalate "," dupTypes
                  in E.error $ internal $ T.pack $ "declaraciones de tipos " ++ listedDups ++ " repetidas en el batch"
             else do
-                --debug $ "TopSort " ++ show (map (\v-> f v)  tp)
                 mapM_ (\(s,ty,p) -> case ty of
                                 RecordTy {} -> insertTipoT s (RefRecord s)
                                 _ -> return ()) dls
                 mapM_ (\x -> do
                         let (s,_ ,_) = f x
                         let (ty,p) = dls' M.! s
-                        --debug $ "Antes de handle con ty: " ++ show ty
                         t <- handle (transTy ty) (\t -> E.error $  internal $ T.pack $ "se encontraron dependencias ciclicas o hay declaraciones de tipo interrumpidas")
                         insertTipoT s t 
-                    ) (reverse tp)
+                    )  (reverse tp)
         
 
 
-addpos t p exp = handle t  (\t -> E.error $ adder t (T.pack $ "  en la posicion: " ++  printPos p ++ "\n" ++ 
+addpos t p exp = handle t  (\e -> E.error $ adder e (T.pack $ "  en la posicion: " ++  printPos p ++ "\n" ++ 
                                                               "  en la expresion:\n" ++ tabbedExp ++
                                                               "  error de tipos:\n\t"))
                                                                    where tabbedExp = unlines $ map ("\t"++) $ lines exp
@@ -324,11 +322,17 @@ transVar :: (Manticore w) => Var -> w Tipo
 transVar (SimpleVar s) = getTipoValV s
 transVar (FieldVar v s) = do 
         v' <- transVar v
-        case v' of
+	case v' of
             TRecord xs _ -> case buscarM s xs of
                 Just t -> return t
                 _ -> E.error $ internal $ T.pack $ "record: el campo " ++ T.unpack s ++" no está definido"
-            x -> E.error $ internal $ T.pack $ "record: la variable no tiene tipo record sino " ++ show x 
+            RefRecord t -> do 
+		TRecord xs _  <- getTipoT t
+		case buscarM s xs of
+		    Just t -> return t
+                    _ -> E.error $ internal $ T.pack $ "record: el campo " ++ T.unpack s ++" no está definido"
+	    x -> do showTEnv
+                    E.error $ internal $ T.pack $ "record: la variable no tiene tipo record sino " ++ show x 
 transVar (SubscriptVar v e) = do
         e' <- transExp e
         C.unlessM (tiposIguales e' $ TInt RW) $ E.error $ internal $ T.pack $ "array: el indice no es un entero"
@@ -338,14 +342,10 @@ transVar (SubscriptVar v e) = do
             x -> E.error $ internal $ T.pack $ "array: la variable no tiene tipo array sino " ++ show x 
 
 transTy :: (Manticore w) => Ty -> w Tipo
-transTy (NameTy s) = do --debug $ "getTipoT " ++ show s
-                        t <- getTipoT s
-                        --debug $ "Type " ++ show s ++ " -> " ++ show t
-                        return t
+transTy (NameTy s) = getTipoT s
 transTy (ArrayTy s) = do
         u <- ugen
         t <- getTipoT s
-       -- debug $ "Tipo array " ++ show s ++ " -> " ++ show t
         return $ TArray t u 
 transTy (RecordTy flds) = do 
         let sortedFlds = sortBy (comparing (\(s,_,_)->s)) flds
@@ -354,10 +354,7 @@ transTy (RecordTy flds) = do
                             t' <- transTy t
                             return (s, t', n)) zippedFlds
         u <- ugen
-       -- debug $ "Tipo record " ++ show flds ++ " -> " ++ show typedFlds
         return $ TRecord typedFlds u
-
-
 
 fromTy :: (Manticore w) => Ty -> w Tipo
 fromTy (NameTy s) = getTipoT s
@@ -365,15 +362,13 @@ fromTy _ = P.error "no debería haber una definición de tipos en los args..."
 
 transDec :: (Manticore w) => Dec -> w () -- por ahora...
 transDec w@(TypeDec ls) = let (_,_,p) = head ls
-                          in do --debug $ "transDec con " ++ show ls  
-                                addpos (addTypos ls) p (ppD w) 
+                          in addpos (addTypos ls) p (ppD w) 
 transDec w@(VarDec s mb Nothing init p) = do
     tinit <- transExp init
     case tinit of
         TNil -> errorTT p (ppD w) "declaracion: se intento asignar Nil a una variable sin signatura de tipo" 
         TInt RO -> insertValV s (TInt RW)
         t -> insertValV s t
-
 transDec w@(VarDec s mb (Just t) init p) = do
     tinit <- transExp init
     t' <- getTipoT t
@@ -382,8 +377,6 @@ transDec w@(VarDec s mb (Just t) init p) = do
                            show t' ++ " y se tiene un valor de tipo " ++ show tinit)
     insertValV s t' -- el tipo que insertamos es el dado por el usuario  
 
-            --then let dupTypes = map (show . T.unpack . head) $ filterByLength (>1) symbols
-              --       listedDups = intercalate "," dupTypes
 transDec w@(FunctionDec fb) =
     let symbols = map (\(s,_,_,_,_) -> s) fb
         (_,_,_,_,p) = head fb 
@@ -419,7 +412,7 @@ transExp (NilExp {}) = return TNil
 transExp (IntExp {}) = return $ TInt RW
 transExp (StringExp {}) = return TString
 transExp w@(CallExp nm args p) = do 
-        (_,_,ts,tr,_) <- getTipoFunV nm
+        (_,_,ts,tr,_) <- handle (getTipoFunV nm) (\t -> errorTT p (ppE w) $ "no se encontro la definicion de la funcion " ++ show nm)
         C.unless (P.length ts == P.length args) $ errorTT p (ppE w) $ "llamada a funcion " ++ T.unpack nm ++ ": numero de argumentos erroneo"
         let checkTypes t e = do -- armo una función que compara un tipo esperado con el
             t' <- transExp e    -- calculado recursivamente, sale con error si falla

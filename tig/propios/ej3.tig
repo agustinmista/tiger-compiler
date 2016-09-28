@@ -27,15 +27,15 @@ let
             then IsBComplete(t.children.hd) & IsBComplete(t.children.tl.hd)
             else 0
 
-    function GPrintChildren(l:treelist):string=
+/*    function GPrintChildren(l:treelist):string=
        if l = nil
           then ""
-          else concat(InTreeToStr(l.hd), IntPrintChildren(l.tl))
+          else concat(InTreeToStr(l.hd), GPrintChildren(l.tl))
 
     function GTreeToStr(t:tree):string=
         if t = nil
           then ""
-          else concat(chr(t.key), InPrintChildren(t.children))
+          else concat(chr(t.key), GPrintChildren(t.children))
 
     function GPrintPreOrder(t:tree):=
        print(GTreeToStr(t))
@@ -47,12 +47,18 @@ let
                then chr(t.key)
                else if Len(t.children) = 1
                       then concat(InTreeToStr(t.children.hd), chr(t.key))
-                      else concat(InTreeToStr(t.children.hd), concat(chr(t.key), InTreeToStr(t.children, InTreeToStr(t.children.tl.hd))))
+                      else concat(InTreeToStr(t.children.hd),
+			          concat(chr(t.key), 
+					 concat(InTreeToStr(t.children), 
+                                                InTreeToStr(t.children.tl.hd)
+                                               )
+    					)
+ 				 )
        
     function PrintInOrder(t:tree):=
         if IsBin(t)
         then print(InTreeToStr(t))
-
+*/
 in
    0
 end

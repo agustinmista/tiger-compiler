@@ -93,8 +93,6 @@ printSourceCode src = do
     putStrLn $ unlines $ zipWith (\l t -> padNumber l ++ "|" ++ t) [1..] $ lines src 
     putStrLn "**** input source code end ****\n"
    
-
-
 digs :: Int -> [Int]
 digs 0 = []
 digs x = digs (x `div` 10) ++ [x `mod` 10]  

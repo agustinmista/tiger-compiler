@@ -15,11 +15,6 @@ binary s f assoc ln = Ex.Infix (do
                         reservedOp s 
                         return (\e1 e2 -> OpExp e1 f e2 ln)) assoc
 
--- tthen e2 ln = Ex.Infix (
---             do 
---                 reserved "then"
---                 return (\ c e -> IfExp c e e2 ln)) Ex.AssocNone
-
 amperCmp ln = Ex.Infix (do
             reservedOp "&"
             return (\e1 e2 -> IfExp e1 e2 (Just (IntExp 0 ln)) ln)) Ex.AssocLeft
@@ -62,18 +57,6 @@ v' var = (do
             e <- brackets expression
             v' (SubscriptVar var e))
             <|> return var
---v' :: Var -> Parser Var
---v' var = (do
---            e <- brackets expression
---            v' (SubscriptVar var e))
---       <|> field' var
---       <|> return var
---
---field' var = chainl v' (do 
---                dot
---                s <- identifier
---                v' (FieldVar var (pack s)))
---
 
 
 variable :: Parser Var
@@ -255,13 +238,6 @@ seqexp = do
     p <- gline
     es <- parens $ semiSep1 expression
     return (SeqExp es p)
-{-
-seqexpWOut :: Parser Exp
-seqexpWOut = do
-    p <- gline
-    es <- semiSep1 parseexp
-    return (SeqExp es p)
--}
 
 recfld :: Parser (Symbol, Exp)
 recfld = do
