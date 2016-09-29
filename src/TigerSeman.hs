@@ -243,9 +243,9 @@ instance Manticore Lion where
     getTipoFunV s = do
         venv <- getVEnv `addLer` "getTipoFunV"
         case lookupI s venv of
-            Nothing -> E.error $ notfound (T.append s (T.pack " getTipoFunV/Nothing "))
-            Just (Func f) -> return f
-            _ -> E.error $ internal $ T.pack $ "la variable " ++ show s ++ " no es una funcion"
+                Nothing -> E.error $ notfound (T.append s (T.pack " getTipoFunV/Nothing "))
+                Just (Func f) -> return f
+                _ -> E.error $ internal $ T.pack $ "la variable " ++ show s ++ " no es una funcion"
     insertTipoT s t = do
         tenv <- getTEnv `addLer` "insertTipoT"
         setTEnv $ insertI s t tenv
@@ -322,17 +322,16 @@ transVar :: (Manticore w) => Var -> w Tipo
 transVar (SimpleVar s) = getTipoValV s
 transVar (FieldVar v s) = do 
         v' <- transVar v
-	case v' of
+        case v' of
             TRecord xs _ -> case buscarM s xs of
                 Just t -> return t
                 _ -> E.error $ internal $ T.pack $ "record: el campo " ++ T.unpack s ++" no está definido"
             RefRecord t -> do 
-		TRecord xs _  <- getTipoT t
-		case buscarM s xs of
-		    Just t -> return t
+                TRecord xs _  <- getTipoT t
+                case buscarM s xs of
+                    Just t -> return t
                     _ -> E.error $ internal $ T.pack $ "record: el campo " ++ T.unpack s ++" no está definido"
-	    x -> do showTEnv
-                    E.error $ internal $ T.pack $ "record: la variable no tiene tipo record sino " ++ show x 
+            x -> E.error $ internal $ T.pack $ "record: la variable no tiene tipo record sino " ++ show x 
 transVar (SubscriptVar v e) = do
         e' <- transExp e
         C.unlessM (tiposIguales e' $ TInt RW) $ E.error $ internal $ T.pack $ "array: el indice no es un entero"

@@ -1,4 +1,4 @@
-module Main (main) where
+module TigerMain (main) where
 import qualified System.Environment as Env
 import System.Exit
 import System.Console.GetOpt
@@ -113,8 +113,9 @@ isLeft (Left x) = True
 isLeft _        = False
 
 -- Handler para excepciones
-printException :: SomeException -> IO ()
-printException e = putStrLn $ "tiger: " ++ show e
+printException :: SomeException -> IO Int
+printException e = do putStrLn $ "tiger: " ++ show e 
+                      return (-1)
 
 
 
@@ -148,6 +149,6 @@ main = handle printException $ do
     putStrLn $ "Tipo resultante: " ++ show (fromRight seman)
 
     putStrLn "finished"
-
+    return 0
     
 
