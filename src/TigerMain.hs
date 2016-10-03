@@ -69,6 +69,37 @@ calculoEscapadas rawAST opts =
                             when (optPPA opts) (printPrettyAst exp)
                             return $ Right exp
 
+
+--codgenStep :: Exp -> Bool -> GenSt [Frag]
+--codgenStep e s = do
+--    let sem = runLion e
+--    when (isLeft sem) (error $ "Semantic core:"++ show (getLeft sem))
+--    let (fs,temp,lbl) = getRight sem
+--    when s (lift $ putStrLn $ foldr (\t ts -> renderFrag t ++ '\n':ts) "" fs)
+--    setLabel lbl
+--    setTemp temp
+--    return fs
+--
+--canonStep' :: [Frag] -> GenSt ([Frag],[([Tree.Stm],Frame)])
+--canonStep' xs = do
+--    l <- getLabel
+--    t <- getTemp
+--    let (strs, procs) =  sepFrag xs
+--    let (can, t', l') = canon t l procs
+--    setLabel l'
+--    setTemp t'
+--    return (strs, can)
+--
+--canonStep :: [Frag] -> Bool -> GenSt ([Frag],[([Tree.Stm],Frame)])
+--canonStep xs opt = do
+--    (strs, procs) <- canonStep' xs
+--    when opt ( -- Show Time!
+--        lift $ putStrLn "Data Segment:" >>
+--        mapM_ (putStrLn . renderFrag) strs >>
+--        putStrLn "Code Segment:" >>
+--        mapM_ (\(sts,fr) -> putStrLn $ renderPCan sts fr) procs)
+--    return (strs,procs)
+
 -- Printers para debug
 printStepper envs = do
     putStrLn "**** stepper mode begin ****"
@@ -148,6 +179,10 @@ main = handle printException $ do
     when (isLeft seman) (error $ "error semantico\n" ++ show (fromLeft seman))
     putStrLn $ "Tipo resultante: " ++ show (fromRight seman)
 
+   -- OBcodecanon <- evalStateT (do
+   --         frags <- codgenStep (fromJust east) (optIr opts')
+   --         canonStep frags (optCanon opts')) initState
+   -- 
     putStrLn "finished"
     return 0
     

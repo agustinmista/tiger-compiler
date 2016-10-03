@@ -4,6 +4,9 @@ module TigerErrores where
 import qualified Data.Text as T
 import Prelude hiding (error)
 
+strToErr :: String -> T.Text
+strToErr = T.pack
+
 class (Monad w) => Deamon w where
     data Error w :: *
     error :: Error w -> w a
