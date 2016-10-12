@@ -1,13 +1,13 @@
 {-# LANGUAGE TypeSynonymInstances,FlexibleInstances, TypeFamilies #-}
 module TigerSeman where
 
-import TigerSres
-import TigerTips
+import TigerAbs
 import TigerEnv
 import TigerErrores as E
-import TigerAbs
+import TigerSres
 import TigerTemp
-import TigerPretty
+import TigerTips
+import TigerTrans
 
 import qualified Data.Map.Strict as M
 import qualified Control.Monad.State as ST
@@ -25,6 +25,11 @@ import qualified Data.Text as T
 
 import Debug.Trace
 
+none :: BExp
+none = Ex $ Const 1
+
+ifNM b t f = ifM (not <$> b) t f
+
 -- Helper para debug
 debug msg = trace msg (return ())
 
@@ -34,45 +39,51 @@ remDup = concat . filterByLength (==1)
 filterByLength :: Ord a => (Int -> Bool) -> [a] -> [[a]]
 filterByLength p = filter (p . length) . group . sort
 
-class (Environmental w, NotFounder w) => Manticore w where
--- Que compartan el espacio de nombres es decisión de la instancia.
-    -- Insertar un valor en el espacio de valores definido
-    insertValV :: Symbol -> ValEntry -> w ()
-    -- Insertar una funcion en el espacio de funciones definidas.
-    insertFunV :: Symbol -> FunEntry -> w ()
-    -- Insertar un valor de solo lectura.
-    insertVRO :: Symbol -> ValEntry -> w  ()
-    -- Insertar un tipo al espacio de tipos.
-    insertTipoT :: Symbol -> Tipo -> w ()
-    -- Dado el nombre de un valor, obtener la informacion que
-    -- guardamos en la definicion
-    getTipoFunV :: Symbol -> w FunEntry 
-    -- Dado el nombre de un valor, obtener la informacion que
-    -- guardamos en la definicion
-    getTipoValV :: Symbol -> w ValEntry
-    -- Dado el nombre de un tipo, obtener el tipo interno del compilador
-    getTipoT :: Symbol -> w Tipo
- 
-    -- Guardar el estado de las definiciones, util al hacer declaraciones
-    setRPoint :: w ()
-    -- Reestablecer el estado de las definiciones, util al momento de
-    -- hacer las declaraciones
-    restoreRPoint :: w ()
-    --
 
-    -- Retornar errores de tipos con mensajes 
+-- | Clase general que propongo para realizar el análisis semántico.
+class (TLGenerator w, NotFounder w) => Manticore w where
+    -- | Insertar un valor en el espacio de valores definidos.
+    insertValV :: Symbol -> ValEntry -> w ()
+    -- | Insertar una función en el espacio de funciones definidas
+    insertFunV :: Symbol -> FunEntry -> w ()
+    -- | Insertar un valor de solo lectura. De todas maneras, se pide memoria en
+    -- el val entry. DEPRECATED
+    insertVRO :: Symbol -> ValEntry -> w ()
+    insertVRO = insertValV
+    -- | Insertar un tipo al espacio de tipos. Ej: 'insertTipoT "Entero" (TInt RW)'
+    insertTipoT :: Symbol -> Tipo -> w ()
+    -- | Dado el nombre de una función, obtener la información que guardamos en
+    -- la definición
+    getTipoFunV :: Symbol -> w FunEntry
+    -- | Dado el nombre de un valor, obtener la información que guardamos en
+    -- la definición
+    getTipoValV :: Symbol -> w ValEntry
+    -- | Dado el nombre de un tipo, obtener el tipo interno del compilador.
+    getTipoT :: Symbol -> w Tipo
+    -- | Utilizada para guardar el estado de definiciones, util al momento de
+    -- hacer las declaraciones.
+    setRPoint :: w ()
+    -- | Utilizada para reestablecer el estado de definiciones, util al momento de
+    -- hacer las declaraciones.
+    restoreRPoint :: w ()
+
+    -- | Retornar errores de tipos con mensajes 
     errorTT :: Pos -> String -> String -> w a
     errorTT p exp msg = E.error $ internal $ T.pack $ "  en la posicion: " ++ printPos p ++ "\n" ++ 
                                                       "  en la expresion:\n" ++ tabbedExp ++ 
                                                       "  error de tipos:\n\t" ++ msg
                                                                 where tabbedExp = unlines $ map ("\t"++) $ lines exp
     -- DEBUG --
-    -- Mostrar el entorno de valores
+    -- | Función de Debugging que muestra el entorno de valores
     showVEnv :: w ()
-    -- Mostrar el entorno de los tipos
+    -- | Función de Debugging que muestra el entorno de tipos
     showTEnv :: w ()
+    -- | Debugging entrega 2
+    showEnt2 :: w ()
     --
 
+    --  | Tiposiguales, es relativo y necesario por la definición de 'Tipo' que
+    --  propuse en TigerTips.hs . Viene gratis...
     tiposIguales :: Tipo -> Tipo -> w Bool 
     tiposIguales (RefRecord s) l@(TRecord _ u) = do
         st <- getTipoT s
@@ -96,7 +107,8 @@ class (Environmental w, NotFounder w) => Manticore w where
     tiposIguales  e (RefRecord s) = E.error $ internal $ T.pack $ "no son tipos iguales... 123+4" ++ (show e ++ show s)
     tiposIguales a b = return (intiposIguales a b)
     
-    -- Generador de identificadores unicos
+    -- | Generador de 'Unique' para las definiciones de los tipos records,
+    -- array, etc.
     ugen :: w Unique
     --
 
@@ -127,20 +139,29 @@ class (Environmental w, NotFounder w) => Manticore w where
                     )  (reverse tp)
         
 
-
+-- | COMPLETAR
+--
 addpos t p exp = handle t  (\e -> E.error $ adder e (T.pack $ "  en la posicion: " ++  printPos p ++ "\n" ++ 
                                                               "  en la expresion:\n" ++ tabbedExp ++
                                                               "  error de tipos:\n\t"))
                                                                    where tabbedExp = unlines $ map ("\t"++) $ lines exp
 
 
--- Un ejemplo de estado que alcanzaría para realizar todas la funciones es:
-data EstadoG = G { unique :: Int
-                 , vEnv   :: Stack Lion (Mapper Lion Symbol EnvEntry)
-                 , tEnv   :: Stack Lion (Mapper Lion Symbol Tipo)
+-- | Un ejemplo de estado que alcanzaría para realizar todas la funciones es:
+data EstadoG = G { unique      :: Int
+                 , vEnv        :: Stack Lion (Mapper Lion Symbol EnvEntry)
+                 , tEnv        :: Stack Lion (Mapper Lion Symbol Tipo)
+                 -- Entrega 2
+                 , stLevel     :: Stack Lion Level
+                 , actualLevel :: Int
+                 , utemp       :: Int
+                 , ulbl        :: Int
+                 , fragStack   :: Stack Lion TransFrag
+                 , stSalida    :: Stack Lion (Maybe Label)
                  } deriving Show
 
--- Acompañado de un tipo de errores
+
+-- | Acompañado de un tipo de errores
 data SEErrores = NotFound T.Text 
                | DiffVal T.Text 
                | Internal T.Text
@@ -150,32 +171,54 @@ instance Show SEErrores where
     show (DiffVal t) = T.unpack t
     show (Internal t) = T.unpack t
 
---  Podemos definir el estado inicial como:
-initConf :: EstadoG
-initConf = G { unique = 0
-             , tEnv = StackL [ Map $ M.insert (T.pack "int") (TInt RW) (M.singleton (T.pack "string") TString)]
-             , vEnv = StackL [ Map $ M.fromList
-                     [(T.pack "print", Func (1,T.pack "print",[TString], TUnit, True))
-                     ,(T.pack "flush", Func (1,T.pack "flush",[],TUnit, True))
-                     ,(T.pack "getchar",Func (1,T.pack "getchar",[],TString,True))
-                     ,(T.pack "ord",Func (1,T.pack "ord",[TString],TInt RW,True)) -- Ojota con este intro...
-                     ,(T.pack "chr",Func (1,T.pack "chr",[TInt RW],TString,True))
-                     ,(T.pack "size",Func (1,T.pack "size",[TString],TInt RW,True))
-                     ,(T.pack "substring",Func (1,T.pack "substring",[TString,TInt RW, TInt RW],TString,True))
-                     ,(T.pack "concat",Func (1,T.pack "concat",[TString,TString],TString,True))
-                     ,(T.pack "not",Func (1,T.pack "not",[TInt RW],TInt RW,True))
-                     ,(T.pack "exit",Func (1,T.pack "exit",[TInt RW],TUnit,True))
-                     ]]}
+
+-- | Podemos definir el estado inicial como:
+lionConf :: EstadoG
+lionConf = G {unique = 0
+            , stLevel = StackL [outermost]
+            , stSalida = StackL []
+            , actualLevel = 0
+            , utemp = 0
+            , ulbl = 0
+            , fragStack = StackL []
+            , tEnv = StackL [Map $ M.insert (T.pack "int") (TInt RW) (M.singleton (T.pack "string") TString)]
+            , vEnv = StackL [ Map $ M.fromList
+                    [(T.pack "print", Func (outermost,T.pack "print",[TString], TUnit, True))
+                    ,(T.pack "flush", Func (outermost,T.pack "flush",[],TUnit, True))
+                    ,(T.pack "getchar",Func (outermost,T.pack "getchar",[],TString,True))
+                    ,(T.pack "ord",Func (outermost,T.pack "ord",[TString],TInt RW,True)) -- Ojota con este intro...
+                    ,(T.pack "chr",Func (outermost,T.pack "chr",[TInt RW],TString,True))
+                    ,(T.pack "size",Func (outermost,T.pack "size",[TString],TInt RW,True))
+                    ,(T.pack "substring",Func (outermost,T.pack "substring",[TString,TInt RW, TInt RW],TString,True))
+                    ,(T.pack "concat",Func (outermost,T.pack "concat",[TString,TString],TString,True))
+                    ,(T.pack "not",Func (outermost,T.pack "not",[TInt RW],TInt RW,True))
+                    ,(T.pack "exit",Func (outermost,T.pack "exit",[TInt RW],TUnit,True))
+                    ]]}
 
 
--- Defino la monada que va a llevar el estado y devolver o un error o alguna otra pavada (por ahora, un tipo)
+-- | Defino la monada que va a llevar el estado y devolver o un error o alguna otra pavada (por ahora, un tipo)
 type Lion = ST.StateT EstadoG (Either SEErrores)
 
--- Ahora puedo poner la monada a trabajar
-runLion :: Exp -> Either SEErrores Tipo 
-runLion e = either Left (Right . fst) $ ST.runStateT (transExp e) initConf
+-- | Ahora puedo poner la monada a trabajar
+runLion :: Exp -> Either SEErrores ([TransFrag],Int,Int)
+runLion e = case ST.runStateT (transExp (LetExp [FunctionDec [(T.pack "_tigermain",[],Just $ T.pack "int",e,Simple 0 0)]] (IntExp 0 (Simple 0 1)) (Simple 0 2))) lionConf of
+                Left x -> Left x
+                Right ((e,_), est) -> Right (fragToList $ fragStack est,utemp est, ulbl est)
 
--- Debo mostrar que todo leon puede andar en manada
+-- | Muestro que todo leon tiene genera labels
+instance TLGenerator Lion where
+    newTemp  = do
+        st <- ST.get
+        let l = utemp st
+        ST.put(st{utemp = l+1})
+        return $ detgenTemp l
+    newLabel = do
+        st <- ST.get
+        let l = ulbl st
+        ST.put(st{ulbl = l+1})
+        return $ detgenLabel l
+
+-- | Debo mostrar que todo leon puede andar en manada
 instance Environmental Lion where
     data Mapper Lion a b = Map (M.Map a b) deriving Show
     emptyI = Map M.empty
@@ -184,8 +227,8 @@ instance Environmental Lion where
     lookupI s (Map e) = M.lookup s e
     intersecI f (Map m1) (Map m2) = Map $ M.intersectionWith f m1 m2
 
--- Tengo que mostrar que un leon es un deamon (sea lo que eso fuera)
-instance Deamon Lion where
+-- Tengo que mostrar que un leon es un daemon
+instance Daemon Lion where
     data Error Lion = E SEErrores
     error (E e) = throwError e
     handle m f = catchError m (f . E)
@@ -199,7 +242,52 @@ instance Deamon Lion where
 instance NotFounder Lion where
     notfound = E . NotFound
 
--- Tambien hace falta mostrar que Lion puede usar una lista como un stack
+-- | COMPLETAR
+instance FlorV Lion where
+        pushLevel l = do
+            st <- ST.get
+            nst <- push l (stLevel st)
+            ST.put (st{stLevel=nst})
+        popLevel = do
+            st <- ST.get
+            nst <- pop (stLevel st) `addLer` "popLevel"
+            ST.put (st{stLevel=nst})
+        topLevel = do
+            st <- ST.get
+            top (stLevel st) `addLer` "topLevel"
+        getActualLevel = do
+            st <- ST.get
+            return $ actualLevel st
+        upLvl =  do
+            st <- ST.get
+            let nl = actualLevel st
+            ST.put $ st{actualLevel = nl +1}
+        downLvl =  do
+            st <- ST.get
+            let nl = actualLevel st
+            ST.put $ st{actualLevel = nl -1}
+        pushFrag f = do
+            st <- ST.get
+            nf <- push f (fragStack st)
+            ST.put $ st{fragStack=nf}
+        getFrags = do
+            st <- ST.get
+            let (StackL xs) = fragStack st
+            return xs
+        pushSalida l = do
+            st <- ST.get
+            newst <- push l (stSalida st)
+            ST.put (st{stSalida=newst})
+        topSalida = do
+            st <- ST.get
+            top (stSalida st) `addLer` "topSalida"
+        popSalida = do
+            st <- ST.get
+            newst <- pop (stSalida st) `addLer` "popSalida"
+            ST.put (st{stSalida=newst})
+
+
+-- | Tambien hace falta mostrar que Lion puede usar una lista como un stack
 instance Stacker Lion where
     data Stack Lion x = StackL [x]
     push x (StackL st) =  return $ StackL (x:st)
@@ -213,7 +301,7 @@ instance Stacker Lion where
 instance (Show a) => Show (Stack Lion a) where
     show (StackL x) = "Stack" ++ (foldr (\t ts -> show t ++ '\n':ts) "" x)
 
--- Ahora si, puedo ver que si el leon tiene todo lo anterio,
+-- | Ahora si, puedo ver que si el leon tiene todo lo anterio,
 -- entonces puede volar
 instance Manticore Lion where
     ugen = do
@@ -264,8 +352,17 @@ instance Manticore Lion where
         vs <- pop (vEnv st) `addLer` "restoreRPoint"
         ts <- pop (tEnv st) `addLer` "restoreRPoint"
         ST.put (st{vEnv = vs, tEnv = ts})
+    showEnt2 = do
+        st <- ST.get
+        let traceLev = "\nstLevel:" ++ (show $ stLevel st)
+        let traceSal = "\nstSalida:" ++ (show $ stSalida st)
+        let aclvl = "\nActualLevel:" ++ (show $ actualLevel st)
+        let tmp = "\nTempGen:" ++ (show $ utemp st)
+        let lbl = "\nLabelGen:" ++ (show $ ulbl st)
+        let frStack ="\nFragStack:" ++ (show $ fragStack st)
+        ST.put (trace (traceLev ++ traceSal ++ aclvl ++ tmp ++ lbl ++ frStack) st)
 
--- Auxiliares para la instancia de Manticore Lion
+-- | Auxiliares para la instancia de Manticore Lion
 getVEnv :: Lion (Mapper Lion Symbol EnvEntry)
 getVEnv = do
     st <- ST.get
@@ -293,6 +390,10 @@ depend (NameTy s) = [s]
 depend (ArrayTy s) = [s]
 depend (RecordTy ts) = concatMap (\(_,_,t) -> depend t) ts
 
+fragToList :: Stack Lion a -> [a]
+fragToList (StackL xs) = xs
+
+
 genLabel s p@(Simple l c) u = return $ s <> T.pack ("." ++ show l ++ "." ++ show c ++ "." ++ show u)  
 genLabel s p u = E.error $ internal $ T.pack $ "error generando el label para " ++ show s ++ " en " ++ printPos p  
 
@@ -304,40 +405,55 @@ okOp TNil TNil NeqOp = False
 okOp TUnit _ NeqOp = False
 okOp _ _ NeqOp = True
 
-cmpZip :: (Manticore m) =>  [(Symbol, Tipo)] -> [(Symbol, Tipo, Int)] -> m Bool
-cmpZip [] [] = return True
-cmpZip [] _ = return False
-cmpZip _ [] = return False
+cmpZip :: (Manticore m) =>  [(Symbol, Tipo)] -> [(Symbol, Tipo, Int)] -> m (M.Map Symbol Int,Bool)
+cmpZip [] [] = return (M.empty,True)
+cmpZip [] _ = return (M.empty, False)
+cmpZip _ [] = return (M.empty,False)
 cmpZip ((sl,tl):xs) ((sr,tr,p):ys) = do
         b <- tiposIguales tl tr
-        if b  && (sl == sr) then cmpZip xs ys
-                else return False
+        if b  && (sl == sr) then
+                    do
+                        (m,b) <- cmpZip xs ys
+                        let nm = M.insert sl p m
+                        return (nm,b)
+                else return (M.empty,False)
 
-buscarM :: Symbol -> [(Symbol, Tipo, Int)] -> Maybe Tipo
+buscarM :: Symbol -> [(Symbol, Tipo, Int)] -> Maybe (Int,Tipo)
 buscarM s [] = Nothing
-buscarM s ((s',t,_):xs) | s == s' = Just t
+buscarM s ((s',t,i):xs) | s == s' = Just (i,t)
                         | otherwise = buscarM s xs
 
-transVar :: (Manticore w) => Var -> w Tipo
-transVar (SimpleVar s) = getTipoValV s
+
+--------------------------------------------------------------------------------
+transVar :: (Manticore w, FlorV w) => Var -> w (BExp, Tipo)
+transVar (SimpleVar s) = do
+    (ty, acc, lvl) <-  getTipoValV s
+    be <- simpleVar acc lvl
+    return (be, ty)
 transVar (FieldVar v s) = do 
-        v' <- transVar v
-        case v' of
+        (cv, tv) <- transVar v
+        case tv of
             TRecord xs _ -> case buscarM s xs of
-                Just t -> return t
+                Just (pos,t) -> do
+                    be <- fieldVar cv pos
+                    return (be,t)
                 _ -> E.error $ internal $ T.pack $ "record: el campo " ++ T.unpack s ++" no está definido"
             RefRecord t -> do 
                 TRecord xs _  <- getTipoT t
                 case buscarM s xs of
-                    Just t -> return t
+                    Just (pos, t) -> do
+                        be <- fieldVar cv pos
+                        return (be, t) 
                     _ -> E.error $ internal $ T.pack $ "record: el campo " ++ T.unpack s ++" no está definido"
             x -> E.error $ internal $ T.pack $ "record: la variable no tiene tipo record sino " ++ show x 
 transVar (SubscriptVar v e) = do
-        e' <- transExp e
-        C.unlessM (tiposIguales e' $ TInt RW) $ E.error $ internal $ T.pack $ "array: el indice no es un entero"
-        v' <- transVar v
-        case v' of 
-            TArray t _ -> return t
+        (ce, te) <- transExp e
+        C.unlessM (tiposIguales te $ TInt RW) $ E.error $ internal $ T.pack $ "array: el indice no es un entero"
+        (cv, tv) <- transVar v
+        case tv of 
+            TArray t _ -> do
+                cod <- subscriptVar cv ce                
+                return (cod, t)
             x -> E.error $ internal $ T.pack $ "array: la variable no tiene tipo array sino " ++ show x 
 
 transTy :: (Manticore w) => Ty -> w Tipo
@@ -359,180 +475,222 @@ fromTy :: (Manticore w) => Ty -> w Tipo
 fromTy (NameTy s) = getTipoT s
 fromTy _ = P.error "no debería haber una definición de tipos en los args..."
 
-transDec :: (Manticore w) => Dec -> w () -- por ahora...
-transDec w@(TypeDec ls) = let (_,_,p) = head ls
-                          in addpos (addTypos ls) p (ppD w) 
-transDec w@(VarDec s mb Nothing init p) = do
-    tinit <- transExp init
-    case tinit of
-        TNil -> errorTT p (ppD w) "declaracion: se intento asignar Nil a una variable sin signatura de tipo" 
-        TInt RO -> insertValV s (TInt RW)
-        t -> insertValV s t
-transDec w@(VarDec s mb (Just t) init p) = do
-    tinit <- transExp init
-    t' <- getTipoT t
-    C.unlessM (tiposIguales t' tinit) 
-        (errorTT p (ppD w) $ "se esperaba valor de tipo " ++ 
-                           show t' ++ " y se tiene un valor de tipo " ++ show tinit)
-    insertValV s t' -- el tipo que insertamos es el dado por el usuario  
 
-transDec w@(FunctionDec fb) =
-    let symbols = map (\(s,_,_,_,_) -> s) fb
-        (_,_,_,_,p) = head fb 
-    in if length symbols /= length (remDup symbols) 
-        then let dupFuncs =  map (show . T.unpack . head) $ filterByLength (>1) symbols
-                 listedDups = intercalate "," dupFuncs   
-             in errorTT p (ppD w) $ "identificadores de funcion " ++ listedDups ++ " repetidos en un mismo batch"
-        else do 
-            mapM_ (\(s, flds, ms, e, p) -> do
-                u <- ugen
-                flds' <- mapM (\(_,_,ty) -> transTy ty) flds
-                label <- genLabel s p u
-                case ms of
-                    Nothing -> insertFunV s  (u, label, flds', TUnit, False)      
-                    Just rt -> do
-                        rt' <- getTipoT rt
-                        insertFunV s (u, label, flds', rt', False)
-                ) fb  
-            mapM_ (\(s, flds, ms, e, p) -> do
-               (u,label,ts,tr,_) <- getTipoFunV s
-               setRPoint
-               mapM_ (\((s,_,_),t) -> insertValV s t) (zip flds ts)
-               e' <- transExp e
-               C.unlessM (tiposIguales e' tr) (errorTT p (ppD w) $ "se esperaba que el tipo del cuerpo de la funcion " ++
-                                                                    show s ++ " fuera " ++ show tr ++ " y se tiene " ++ show e')
-               restoreRPoint
-               ) fb
+transDec :: (Manticore w, FlorV w) => Dec -> w [BExp] -- por ahora...
+transDec w@(TypeDec ls) = let (_,_,p) = head ls
+                          in do addpos (addTypos ls) p (ppD w)
+                                return []
+transDec w@(VarDec s mb mty init p) = do
+        (cinit, ety) <- transExp init
+        case mty of
+            Just ty -> do
+                    tty <- addpos (getTipoT ty) p
+                    ifNM (tiposIguales tty ety) (errorTT p (ppD w) $ "Se esperaba un valor de tipo " ++ show ty ++ " y se tiene un valor de tipo " ++ show ety) $ return ()
+            Nothing -> return ()
+        nlvl <- getActualLevel
+        acc <- allocLocal (isJust mb)
+        insertValV s (ety,acc, nlvl)
+        return [cinit]
+transDec w@(FunctionDec fb) = do
+        mapM_ (\(nm, args, mret, bd, p) -> do
+            u <- ugen
+            let lbl = T.append nm $ T.append (T.pack $ '.' : posToLabel p) (T.pack $ '.' : show u)
+            (tps,escs) <- foldM (\(tys,escs) (_,esc,t) -> do
+                    ty <- fromTy t
+                    case esc of
+                        Just True -> return (ty:tys, True :escs)
+                        _ -> return (ty:tys, False :escs)
+                    ) ([],[]) args
+            level <- topLevel -- level actual
+            let nlvl = newLevel level lbl (reverse escs)
+            case mret of
+                Just p' -> do
+                    ty <- getTipoT p'
+                    insertFunV nm (nlvl,lbl,reverse tps,ty,False)
+                Nothing -> insertFunV nm (nlvl,lbl,tps,TUnit,False)
+            ) fb -- insertamos todos las interfaces de las funciones...
+        mapM (\(nm, args, mret, bd, p) -> do
+            (nlvl,lbl,argsty,ty,_) <- getTipoFunV nm
+            preFunctionDec nlvl
+            setRPoint -- guardamos el entorno
+            actualLev <- getActualLevel
+            mapM_ (\((nm,b,_), typ) -> do
+                acc <- allocArg (isJust b)
+                insertValV nm (typ,acc,actualLev)) (zip args argsty)
+            t <- topLevel
+            (cb, tyb) <- transExp bd
+            ifNM (tiposIguales ty tyb) (errorTT p (ppD w)  $ "El cuerpo de la función " ++ show nm ++ " tiene tipo " ++ show tyb ++ " y se esperaba " ++ show ty)
+             $ do
+                e <- ifM (tiposIguales tyb TUnit) (functionDec cb t True) (functionDec cb t False)
+                restoreRPoint
+                posFunctionDec
+                return e
+                    ) fb
      
-transExp :: (Manticore w) => Exp -> w Tipo
+transExp :: (Manticore w, FlorV w) => Exp -> w (BExp, Tipo)
 transExp w@(VarExp v p) = addpos (transVar v) p (ppE w) 
-transExp (UnitExp {}) = return TUnit
-transExp (NilExp {}) = return TNil
-transExp (IntExp {}) = return $ TInt RW
-transExp (StringExp {}) = return TString
+transExp (UnitExp {}) = do
+    c <- unitExp
+    return (c,TUnit)
+transExp (NilExp {}) = do
+    c <- nilExp
+    return (c,TNil)
+transExp (IntExp i _) = do
+    c <- intExp i
+    return (c,TInt RW)
+transExp (StringExp s _) = do
+    c <- stringExp $ T.pack s
+    return (c,TString)
 transExp w@(CallExp nm args p) = do 
-        (_,_,ts,tr,_) <- handle (getTipoFunV nm) (\t -> errorTT p (ppE w) $ "no se encontro la definicion de la funcion " ++ show nm)
-        C.unless (P.length ts == P.length args) $ errorTT p (ppE w) $ "llamada a funcion " ++ T.unpack nm ++ ": numero de argumentos erroneo"
-        let checkTypes t e = do -- armo una función que compara un tipo esperado con el
-            t' <- transExp e    -- calculado recursivamente, sale con error si falla
-            ifM (tiposIguales t t') (return t)
-                (errorTT p (ppE w) $ "llamada a funcion " ++ T.unpack nm ++ ": tipo de argumento invalido, se esperaba "
-                           ++ show t ++ " pero se encontro " ++ show t')
-        types <- zipWithM checkTypes ts args
-        return tr
+        (lvl, lbl, as, ret, ext) <- addpos (getTipoFunV nm) p
+        args' <- zipWithM (\ earg rarg -> do
+                                (carg, tearg) <- transExp earg
+                                ifNM (tiposIguales tearg rarg) (errorTT p $ "CallExp:Tipos diferentes" ++ show tearg ++ show rarg)
+                                 $ return carg) args as
+        -- Eventualmente querriamos obtener los IR de cada exp..
+        c <- ifM (tiposIguales ret TUnit)
+                (callExp lbl ext True  lvl args')
+                (callExp lbl ext False lvl args')
+        return (c,ret)
 transExp w@(OpExp el' oper er' p) = do -- Esta va gratis
-        el <- transExp el'
-        er <- transExp er'
-        C.unlessM (tiposIguales el er) (errorTT p (ppE w) ("tipos " ++ show el ++ " y " ++ show er ++ " no son comparables"))
-        case oper of
-            EqOp  -> do
-                    C.unless (okOp el er oper) (errorTT p (ppE w) ("tipos " ++ show el ++ " y " ++ show er ++ " no son comparables mediante " ++ show oper))
-                    return $ TInt RW
-            NeqOp -> do
-                    C.unless (okOp el er oper) (errorTT p (ppE w) ("tipos " ++ show el ++ " y " ++ show er ++ " no son comparables mediante " ++ show oper))
-                    return $ TInt RW
-            PlusOp -> do
-                    C.unlessM (tiposIguales el $ TInt RW) (errorTT p (ppE w) ("tipos " ++ show el' ++ " no es un entero"))
-                    return $ TInt RW
-            MinusOp ->do
-                     C.unlessM (tiposIguales el $ TInt RW) (errorTT p (ppE w) ("tipos " ++ show el' ++ " no es un entero"))
-                     return $ TInt RW
-            TimesOp -> do
-                        C.unlessM (tiposIguales el $ TInt RW) (errorTT p (ppE w) ("tipos " ++ show el' ++ " no es un entero"))
-                        return $ TInt RW
-            DivideOp -> do  
-                    C.unlessM (tiposIguales el $ TInt RW) (errorTT p (ppE w) ("tipos " ++ show el' ++ " no es un entero"))
-                    return $ TInt RW
-            LtOp -> ifM ((tiposIguales el $ TInt RW) <||> (tiposIguales el TString))
-                           (return $ TInt RW )
-                           (errorTT p (ppE w) ("elementos de tipo" ++ show el ++ " no son comparables"))
-            LeOp -> ifM ((tiposIguales el $ TInt RW) <||> (tiposIguales el TString))
-                           (return $ TInt RW)
-                           (errorTT p (ppE w) ("elementos de tipo" ++ show el ++ " no son comparables"))
-            GtOp -> ifM ((tiposIguales el $ TInt RW) <||> (tiposIguales el TString))
-                            (return $ TInt RW )
-                            (errorTT p (ppE w) ("elementos de tipo" ++ show el ++ " no son comparables"))
-            GeOp -> ifM ((tiposIguales el $ TInt RW) <||> (tiposIguales el TString))
-                            (return $ TInt RW) 
-                            (errorTT p (ppE w) ("elementos de tipo" ++ show el ++ " no son comparables"))
+        (cl,el) <- transExp el'
+        (cr,er) <- transExp er'
+        ifNM (tiposIguales el er) (errorTT p (ppE w) ("OpExp:Tipos diferentes" ++ show el ++ show er))
+         $  case oper of
+                EqOp  ->
+                        if (okOp el er oper)
+                        then do
+                                c <- ifM (tiposIguales el TString) (binOpStrExp cl oper cr) (binOpIntRelExp cl oper cr)
+                                return (c,TInt RW)
+                        else (errorTT p (ppE w) ("Tipos no comparables " ++ show el ++ show er ++ show oper))
+                NeqOp ->
+                        if (okOp el er oper)
+                        then do
+                                c <- ifM (tiposIguales el TString) (binOpStrExp cl oper cr) (binOpIntRelExp cl oper cr)
+                                return (c,TInt RW)
+                        else (errorTT p (ppE w) ("Tipos no comparables " ++ show el ++ show er ++ show oper))
+                PlusOp ->
+                        ifNM (tiposIguales el $ TInt RW) (errorTT p (ppE w) ("Tipo " ++ show el' ++ " no es un entero"))
+                        $ binOpIntExp cl oper cr >>= \c -> return (c,TInt RW)
+                MinusOp ->
+                         ifNM (tiposIguales el $ TInt RW) (errorTT p (ppE w) ("Tipo " ++ show el' ++ " no es un entero"))
+                         $ binOpIntExp cl oper cr >>= \c -> return (c,TInt RW)
+                TimesOp -> ifNM (tiposIguales el $ TInt RW) (errorTT p (ppE w) ("Tipo " ++ show el' ++ " no es un entero"))
+                            $ binOpIntExp cl oper cr >>= \c -> return (c,TInt RW)
+                DivideOp ->
+                        ifNM (tiposIguales el $ TInt RW) (errorTT p (ppE w) ("Tipo " ++ show el' ++ " no es un entero"))
+                        $ binOpIntExp cl oper cr >>= \c -> return (c,TInt RW)
+                _ -> ifM (tiposIguales el $ TInt RW)
+                                (do
+                                    c <- binOpIntRelExp cl oper cr
+                                    return (c, TInt RW))
+                                (ifM (tiposIguales el TString)
+                                    (do
+                                        c <- binOpStrExp cl oper cr
+                                        return (c, TInt RW))
+                                    (errorTT p (ppE w) ("Elementos de tipo" ++ show el ++ "no son comparables")))
 
 transExp w@(RecordExp flds rt p) = do  -- Se debe respetar el orden de los efectos
-    rType <- getTipoT rt  -- busco el tipo de record en el entorno
-    case rType of
-        TRecord decFlds _ -> do
-                typedFlds <- mapM (\(s, e) -> transExp e >>= \et -> return (s, et)) flds -- encuentro el tipo de cada field
-                let sortedFlds = sortBy (comparing fst) typedFlds   -- ordeno los campos tipados, suponiendo que fueron parseados en orden
-                ifM (cmpZip sortedFlds decFlds) (return rType)      -- comparo que cada campo encontrado tenga el tipo que fue declarado 
-                    (errorTT p (ppE w) $ "record invalido, se esperaba: " ++ show decFlds
-                               ++ " pero se encontro: " ++ show typedFlds)
-        _ -> errorTT p (ppE w) $ "se esperaba un record, pero se encontro: " ++ show rt
+        recTy <- addpos (getTipoT rt) p -- Buscamos el tipo de rt
+        case recTy of -- Chequeamos que el tipo real sea Record...
+            TRecord rflds _ -> do
+                flds'' <- mapM (\(s,e) -> do {(ce,e') <- transExp e; return ((ce,s),(s,e'))}) flds
+                let (cds,flds') = unzip flds''
+                let sflds = List.sortBy (comparing fst) flds' -- Asumimos que estan ordenados los campos del record.
+                (m, b) <- cmpZip flds' rflds
+                if b
+                    then do
+                        c <- recordExp (map (\(cb,s) -> (cb,m M.! s)) cds)
+                        return (c, recTy)
+                    else (errorTT p (ppE w) $ "Error en los campos del records..." ++ show flds' ++ show rflds)
+            _ -> errorTT p (ppE w) ("El tipo[" ++ show rt ++ "NO es un record")
 
 transExp (SeqExp es p) = do -- Va gratis
         es' <- mapM transExp es
-        return $ last es'
+        let ess = map fst es'
+        let (_,ty) = last es'
+        c <- seqExp ess
+        return (c,ty)
 
 transExp w@(AssignExp var exp p) = do
-    var' <- addpos (transVar var) p (ppE w)
-    exp' <- transExp exp
-    matches <- tiposIguales var' exp'
-    if not matches
-        then errorTT p (ppE w) $ "asignacion: se esperaba valor de tipo " ++ show var' ++ " y se tiene valor de tipo " ++ show exp'
-        else if var' == (TInt RO)
-            then errorTT p (ppE w) "asignacion: se intento asignar una variable RO"
-            else return TUnit
+        (cv,tvar) <- transVar var
+        (cvl,tval) <- transExp val
+        ifM (not <$> (tiposIguales tvar tval)) (errorTT p (ppE w) "Error diferentes tipos en la asignación")
+            (if tvar == (TInt RO)
+                then (errorTT p (ppE w) $ "La variable " ++ show var ++ " es de tipo read only")
+                else (assignExp cv cvl >>= \c ->return (c,TUnit)))
 
 transExp w@(IfExp co th Nothing p) = do
-        co' <- transExp co
-        C.unlessM (tiposIguales co' $ TInt RW) $ errorTT p (ppE w) $ "if: la condicion no es de tipo " ++ show (TInt RW)
-        th' <- transExp th
-        C.unlessM (tiposIguales th' TUnit) $ errorTT p (ppE w) $ "if: el cuerpo no es de tipo " ++ show TUnit
-        return TUnit
+        (cco,co') <- transExp co
+        ifM (not <$> tiposIguales co' (TInt RW)) (errorTT p "Error en la condición")
+            $ transExp th >>= \(cth,th') ->
+                ifM (not <$> tiposIguales th' TUnit) (errorTT p "La expresión del then no es de tipo unit")
+                 $ ifThenExp cco cth >>= \c -> return (c,TUnit)
 
 transExp w@(IfExp co th (Just el) p) = do 
-        co' <- transExp co
-        C.unlessM (tiposIguales co' $ TInt RW) $ errorTT p (ppE w) $ "if: la condicion no es de tipo " ++ show (TInt RW)
-        th' <- transExp th
-        el' <- transExp el
-        C.unlessM (tiposIguales th' el') $ errorTT p (ppE w) "if: las ramas tienen distinto tipo"
-        return th'
+        (cco,co') <- transExp co
+        ifNM (tiposIguales co' $ TInt RW) (errorTT p (ppE w) "Error en la condición")
+            $   do
+                    (cth,th') <- transExp th
+                    (cel,el') <- transExp el
+                    ifNM (tiposIguales th' el') (errorTT p (ppE w) "Los branches tienen diferentes tipos...")
+                        $ ifThenElseExp cco cth cel >>= \c -> return (c,th')
 
 transExp w@(WhileExp co body p) = do
-        co' <- transExp co
-        C.unlessM (tiposIguales co' $ TInt RW) $ errorTT p (ppE w) $ "while: la condicion no es de tipo " ++ show (TInt RW)
-        body' <- transExp body
-        C.unlessM (tiposIguales body' TUnit) $ errorTT p (ppE w) $ "while: el cuerpo no es de tipo " ++ show TUnit
-        return TUnit
+        (cco,co') <- transExp co
+        ifNM (tiposIguales co' $ TInt RW) (errorTT p (ppE w) "La condición no es un booleano")
+            $
+            preWhileforExp >>
+            transExp body >>= \(cb,body') ->
+            ifNM (tiposIguales body' TUnit) (errorTT p (ppE w) "El body del while no es de tipo unit...")
+            $ do
+                lvl <- topLevel
+                c <- whileExp cco cb
+                posWhileforExp
+                return (c,TUnit)
 
 transExp w@(ForExp nv mb lo hi bo p) = do
-        lo' <- transExp lo
-        C.unlessM (tiposIguales lo' $ TInt RW) $ errorTT p (ppE w) $ "for: la cota inferior no es de tipo " ++ show (TInt RW)
-        hi' <- transExp hi
-        C.unlessM (tiposIguales hi' $ TInt RW) $ errorTT p (ppE w) $ "for: la cota superior no es de tipo " ++ show (TInt RW)
-        setRPoint 
-        insertVRO nv (TInt RO)
-        bo' <- transExp bo
-        C.unlessM (tiposIguales bo' $ TUnit) $ errorTT p (ppE w) $ "for: el cuerpo no es de tipo " ++ show TUnit
-        restoreRPoint
-        return TUnit
+        (clo,lo') <- transExp lo
+        ifNM (tiposIguales lo' $ TInt RW) (errorTT p (ppE w) "La cota inferior no es un int...")
+            $ transExp hi >>= \(chi,hi')  ->
+            ifNM (tiposIguales hi' $ TInt RW) (errorTT p (ppE w) "La cota superior no es un int...")
+            $ do
+                setRPoint -- guardamos antes de insertar el iterador
+                --- Generamos eliterador
+                preWhileforExp
+                nlvl <- getActualLevel
+                acc <- allocLocal (isJust mb)
+                insertVRO nv (TInt RO, acc, nlvl)
+                cvar <- varDec acc
+                ---
+                (cbo,bo') <- transExp bo
+                ifNM (tiposIguales bo' TUnit) (errorTT p (ppE w) "el cuerpo del for tiene que ser de tipo unit...")
+                 $ do
+                    c <- forExp clo chi cvar cbo
+                    posWhileforExp
+                    restoreRPoint -- volvemos al punto anterior
+                    return (c,TUnit)
 
 transExp(LetExp dcs body p) = do -- Va gratis...
         setRPoint
-        mapM_ transDec dcs -- esto se deberá modificar al momento de generar cod intermedio.
-        b <- transExp body
+        dcs' <- mapM transDec dcs
+        let dcs'' = concat dcs'
+        (cb,b) <- transExp body
+        c <- letExp dcs'' cb
         restoreRPoint
-        return b
+        return (c,b)
 
-transExp(BreakExp p) = return TUnit -- Va gratis ;)
+transExp(BreakExp p) = do
+    c <- breakExp
+    return (c,TUnit)
 
 transExp w@(ArrayExp sn cant init p) = do
-        sn' <- getTipoT sn
-        init' <- transExp init
-        cant' <- transExp cant
-        C.unlessM (tiposIguales cant' (TInt RW)) $ errorTT p (ppE w) $ "array: el tamaño no es de tipo " ++ show (TInt RW) 
-        case sn' of
+        ty <- getTipoT sn
+        case ty of
             TArray t _ -> do
-                C.unlessM (tiposIguales t init') $ errorTT p (ppE w) $ "array: se declaro de tipo " ++ show t ++ " y se lo intento inicializar con tipo " ++ show init'
-                return sn' 
-            x -> errorTT p (ppE w) $ "array: el tipo " ++ show x ++  " no es un array"
-
-
+                (ccant,cant') <- transExp cant
+                ifNM (tiposIguales cant' $ TInt RW) (errorTT p  (ppE w) "La cantidad debería ser int...")
+                 $ transExp init >>= \(cinit,tinit) ->
+                    ifNM (tiposIguales tinit t) (errorTT p (ppE w) $ "el valor inicial es de tipo " ++ show tinit ++ " cuando debería ser " ++ show t)
+                        $ arrayExp ccant cinit >>= \c -> return (c,ty)
+            _ -> errorTT p (ppE w) $ "Se esperaba un elemento de tipo " ++ show ty
