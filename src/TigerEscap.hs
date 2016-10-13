@@ -81,7 +81,7 @@ class (Environmental m, NotFounder m) => Escapator m where
 
 type Stepper = ST.StateT SEstado (Either Errores)
 
-instance Deamon Stepper where
+instance Daemon Stepper where
     data Error Stepper = StE Errores
     error (StE e) = throwError e
     handle m f = catchError m (f . StE) 
@@ -122,7 +122,7 @@ instance Escapator Stepper where
 
 type Completor = ST.StateT Estado (Either Errores)
 
-instance Deamon Completor where
+instance Daemon Completor where
     data Error Completor = E Errores
     error (E e) = throwError e
     handle m f = catchError m (f . E) 
@@ -162,7 +162,7 @@ instance Escapator Completor where
 
 type Simpler = ST.State Estado -- Sin manejo de Errores...
 
-instance Deamon Simpler where
+instance Daemon Simpler where
     data Error Simpler = Erpes T.Text 
     error (Erpes s) = P.error $ T.unpack s
     internal s = Erpes $ T.pack $ "Interno:" ++ T.unpack s

@@ -11,6 +11,9 @@ printPos :: Pos -> String
 printPos (Simple l c) = "(" ++ show l ++","++ show c++")"
 printPos (Range b e) = "Entre --" ++ printPos b ++ " | " ++ printPos e 
 
+posToLabel :: Pos -> String
+posToLabel (Simple l r) = (show l) ++ '.':(show r)
+posToLabel (Range l r) = (posToLabel l) ++ '.':(posToLabel r)
 
 -- | Representamos las variables
 data Var where

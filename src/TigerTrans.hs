@@ -179,12 +179,12 @@ instance (FlorV w) => IrGen w where
                         return $ Move (Temp rv) e
         procEntryExit lvl (Nx body)
         return $ Ex $ Const 0
-    simpleVar acc level = error "COMPLETAR"
+    simpleVar acc level = undefined --error "COMPLETAR"
     varDec acc = do { i <- getActualLevel; simpleVar acc i}
     unitExp = return $ Ex (Const 0)
     nilExp = return $ Ex (Const 0)
     intExp i = return $ Ex (Const i)
-    fieldVar be i = error "COMPLETAR"
+    fieldVar be i = undefined --error "COMPLETAR"
     -- subscriptVar :: BExp -> BExp -> w BExp
     subscriptVar var ind = do
         evar <- unEx var
@@ -198,9 +198,9 @@ instance (FlorV w) => IrGen w where
                         ,ExpS $ externalCall "_checkIndex" [Temp tvar, Temp tind]])
                 (Mem $ Binop Plus (Temp tvar) (Binop Mul (Temp tind) (Const wSz)))
     -- recordExp :: [(BExp,Int)]  -> w BExp
-    recordExp flds = error "COMPLETAR"
+    recordExp flds = undefined --error "COMPLETAR"
     -- callExp :: Label -> Bool -> Bool -> Level -> [BExp] -> w BExp
-    callExp name external isproc lvl args = error "COMPLETAR"
+    callExp name external isproc lvl args = undefined --error "COMPLETAR"
     -- letExp :: [BExp] -> BExp -> w BExp
     letExp [] e = do -- Puede parecer al dope, pero no...
             e' <- unEx e
@@ -210,7 +210,7 @@ instance (FlorV w) => IrGen w where
         be <- unEx body
         return $ Ex $ Eseq (seq bes) be
     -- breakExp :: w BExp
-    breakExp = error "COMPLETAR"
+    breakExp = undefined --error "COMPLETAR"
     -- seqExp :: [BExp] -> w BExp
     seqExp [] = return $ Nx $ ExpS $ Const 0
     seqExp bes = do
@@ -249,13 +249,13 @@ instance (FlorV w) => IrGen w where
                     , Label last]
             _ -> error $ internal $ T.pack "no label in salida"
     -- forExp :: BExp -> BExp -> BExp -> BExp -> w BExp
-    forExp lo hi var body = error "COMPLETAR"
+    forExp lo hi var body = undefined -- error "COMPLETAR"
     -- ifThenExp :: BExp -> BExp -> w BExp
-    ifThenExp cond bod = error "COMPLETAR"
+    ifThenExp cond bod = undefined --error "COMPLETAR"
     -- ifThenElseExp :: BExp -> BExp -> BExp -> w BExp
-    ifThenElseExp cond bod els = error "COMPLETAR"
+    ifThenElseExp cond bod els = undefined --error "COMPLETAR"
     -- ifThenElseExpUnit :: BExp -> BExp -> BExp -> w BExp
-    ifThenElseExpUnit _ _ _ = error "COmpletaR?"
+    ifThenElseExpUnit _ _ _ = undefined --error "COmpletaR?"
     -- assignExp :: BExp -> BExp -> w BExp
     assignExp cvar cinit = do
         cvara <- unEx cvar
@@ -266,9 +266,9 @@ instance (FlorV w) => IrGen w where
                 return $ Nx $ seq [Move (Temp t) cin, Move cvara (Temp t)]
             _ -> return $ Nx $ Move cvara cin
     -- binOpIntExp :: BExp -> Abs.Oper -> BExp -> w BExp
-    binOpIntExp le op re = error "COMPLETAR"
+    binOpIntExp le op re = undefined --error "COMPLETAR"
     -- binOpStrExp :: BExp -> Abs.Oper -> BExp -> w BExp
-    binOpStrExp strl op strr = error "COMPLETAR"
+    binOpStrExp strl op strr = undefined --error "COMPLETAR"
     -- arrayExp :: BExp -> BExp -> w BExp
     arrayExp size init = do
         sz <- unEx size

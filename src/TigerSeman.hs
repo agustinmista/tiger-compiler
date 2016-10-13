@@ -8,10 +8,17 @@ import TigerSres
 import TigerTemp
 import TigerTips
 import TigerTrans
+import TigerPretty
+
+--import qualified TigerTree as Tree (Exp) 
+import TigerTree hiding (Exp)
 
 import qualified Data.Map.Strict as M
 import qualified Control.Monad.State as ST
 import Control.Monad
+import Control.Applicative hiding (Const)
+import Data.Either
+import Data.Maybe
 import Data.Monoid
 import Control.Arrow
 import Control.Monad.Except
@@ -41,7 +48,7 @@ filterByLength p = filter (p . length) . group . sort
 
 
 -- | Clase general que propongo para realizar el análisis semántico.
-class (TLGenerator w, NotFounder w) => Manticore w where
+class (Functor w, TLGenerator w, NotFounder w) => Manticore w where
     -- | Insertar un valor en el espacio de valores definidos.
     insertValV :: Symbol -> ValEntry -> w ()
     -- | Insertar una función en el espacio de funciones definidas
@@ -484,7 +491,7 @@ transDec w@(VarDec s mb mty init p) = do
         (cinit, ety) <- transExp init
         case mty of
             Just ty -> do
-                    tty <- addpos (getTipoT ty) p
+                    tty <- addpos (getTipoT ty) p (ppD w)
                     ifNM (tiposIguales tty ety) (errorTT p (ppD w) $ "Se esperaba un valor de tipo " ++ show ty ++ " y se tiene un valor de tipo " ++ show ety) $ return ()
             Nothing -> return ()
         nlvl <- getActualLevel
@@ -527,7 +534,7 @@ transDec w@(FunctionDec fb) = do
                 return e
                     ) fb
      
-transExp :: (Manticore w, FlorV w) => Exp -> w (BExp, Tipo)
+transExp :: (Manticore w, FlorV w, Functor w) => Exp -> w (BExp, Tipo)
 transExp w@(VarExp v p) = addpos (transVar v) p (ppE w) 
 transExp (UnitExp {}) = do
     c <- unitExp
@@ -542,11 +549,11 @@ transExp (StringExp s _) = do
     c <- stringExp $ T.pack s
     return (c,TString)
 transExp w@(CallExp nm args p) = do 
-        (lvl, lbl, as, ret, ext) <- addpos (getTipoFunV nm) p
+        (lvl, lbl, as, ret, ext) <- addpos (getTipoFunV nm) p (ppE w)
         args' <- zipWithM (\ earg rarg -> do
                                 (carg, tearg) <- transExp earg
-                                ifNM (tiposIguales tearg rarg) (errorTT p $ "CallExp:Tipos diferentes" ++ show tearg ++ show rarg)
-                                 $ return carg) args as
+                                C.unlessM (tiposIguales tearg rarg) (errorTT p (ppE w)  $ "CallExp:Tipos diferentes" ++ show tearg ++ show rarg)
+                                return carg) args as
         -- Eventualmente querriamos obtener los IR de cada exp..
         c <- ifM (tiposIguales ret TUnit)
                 (callExp lbl ext True  lvl args')
@@ -591,12 +598,12 @@ transExp w@(OpExp el' oper er' p) = do -- Esta va gratis
                                     (errorTT p (ppE w) ("Elementos de tipo" ++ show el ++ "no son comparables")))
 
 transExp w@(RecordExp flds rt p) = do  -- Se debe respetar el orden de los efectos
-        recTy <- addpos (getTipoT rt) p -- Buscamos el tipo de rt
+        recTy <- addpos (getTipoT rt) p (ppE w) -- Buscamos el tipo de rt
         case recTy of -- Chequeamos que el tipo real sea Record...
             TRecord rflds _ -> do
                 flds'' <- mapM (\(s,e) -> do {(ce,e') <- transExp e; return ((ce,s),(s,e'))}) flds
                 let (cds,flds') = unzip flds''
-                let sflds = List.sortBy (comparing fst) flds' -- Asumimos que estan ordenados los campos del record.
+                let sflds = sortBy (comparing fst) flds' -- Asumimos que estan ordenados los campos del record.
                 (m, b) <- cmpZip flds' rflds
                 if b
                     then do
@@ -614,7 +621,7 @@ transExp (SeqExp es p) = do -- Va gratis
 
 transExp w@(AssignExp var exp p) = do
         (cv,tvar) <- transVar var
-        (cvl,tval) <- transExp val
+        (cvl,tval) <- transExp exp 
         ifM (not <$> (tiposIguales tvar tval)) (errorTT p (ppE w) "Error diferentes tipos en la asignación")
             (if tvar == (TInt RO)
                 then (errorTT p (ppE w) $ "La variable " ++ show var ++ " es de tipo read only")
@@ -622,9 +629,9 @@ transExp w@(AssignExp var exp p) = do
 
 transExp w@(IfExp co th Nothing p) = do
         (cco,co') <- transExp co
-        ifM (not <$> tiposIguales co' (TInt RW)) (errorTT p "Error en la condición")
+        ifM (not <$> tiposIguales co' (TInt RW)) (errorTT p (ppE w) "Error en la condición")
             $ transExp th >>= \(cth,th') ->
-                ifM (not <$> tiposIguales th' TUnit) (errorTT p "La expresión del then no es de tipo unit")
+                ifM (not <$> tiposIguales th' TUnit) (errorTT p (ppE w) "La expresión del then no es de tipo unit")
                  $ ifThenExp cco cth >>= \c -> return (c,TUnit)
 
 transExp w@(IfExp co th (Just el) p) = do 
@@ -689,8 +696,9 @@ transExp w@(ArrayExp sn cant init p) = do
         case ty of
             TArray t _ -> do
                 (ccant,cant') <- transExp cant
-                ifNM (tiposIguales cant' $ TInt RW) (errorTT p  (ppE w) "La cantidad debería ser int...")
-                 $ transExp init >>= \(cinit,tinit) ->
-                    ifNM (tiposIguales tinit t) (errorTT p (ppE w) $ "el valor inicial es de tipo " ++ show tinit ++ " cuando debería ser " ++ show t)
-                        $ arrayExp ccant cinit >>= \c -> return (c,ty)
+                C.unlessM (tiposIguales cant' $ TInt RW) (errorTT p  (ppE w) "La cantidad debería ser int...")
+                (cinit,tinit) <- transExp init
+                C.unlessM  (tiposIguales tinit t) (errorTT p (ppE w) $"el valor inicial es de tipo " ++ show tinit ++ " cuando debería ser " ++ show t)
+                c <- arrayExp ccant cinit
+	        return (c,ty)
             _ -> errorTT p (ppE w) $ "Se esperaba un elemento de tipo " ++ show ty
