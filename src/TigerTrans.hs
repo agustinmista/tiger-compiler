@@ -214,7 +214,12 @@ instance (FlorV w) => IrGen w where
         be <- unEx body
         return $ Ex $ Eseq (seq bes) be
     -- breakExp :: w BExp
-    breakExp = undefined --error "COMPLETAR"
+    breakExp = do
+        lfin <- topSalida
+        case lfin of
+            Just fin -> return $ Nx $ Jump (Name fin) fin
+            Nothing  -> error $ internal $ T.pack "Break fuera de loop"
+            
     -- seqExp :: [BExp] -> w BExp
     seqExp [] = return $ Nx $ ExpS $ Const 0
     seqExp bes = do
@@ -248,18 +253,76 @@ instance (FlorV w) => IrGen w where
                     , test (bd,last)
                     , Label bd
                     , cody
-                    , Label last
                     , Jump (Name init) init
                     , Label last]
             _ -> error $ internal $ T.pack "no label in salida"
     -- forExp :: BExp -> BExp -> BExp -> BExp -> w BExp
-    forExp lo hi var body = undefined -- error "COMPLETAR"
+    forExp lo hi var body = do
+       lcond <- newLabel
+       lbody <- newLabel
+       ltop  <- topSalida
+       last  <- maybe (error $ internal $ T.pack "no label in salida") return ltop
+       clo   <- unEx lo
+       chi   <- unEx hi
+       cvar  <- unEx var
+       cbody <- unNx body
+       case chi of 
+           Const i -> return $ Nx $ seq --TODO: Agrupar los seq en uno solo
+                         [ Move cvar clo
+                         , Jump (Name lcond) lcond
+                         , Label lbody
+                         , cbody
+                         , Move cvar (Binop Plus cvar (Const 1))
+                         , Label lcond
+                         , CJump GT cvar (Const i) last lbody --Falla con entero mas grande
+                         , Label last]
+           _ -> do
+             tmp <- newTemp
+             return $ Nx $ seq 
+                [ Move cvar clo
+                , Move (Temp tmp) chi
+                , Jump (Name lcond) lcond
+                , Label lbody
+                , cbody
+                , Move cvar (Binop Plus cvar (Const 1))
+                , Label lcond
+                , CJump GT cvar (Temp tmp) last lbody --Falla con entero mas grande
+                , Label last]
+
     -- ifThenExp :: BExp -> BExp -> w BExp
-    ifThenExp cond bod = undefined --error "COMPLETAR"
+    ifThenExp cond bod = do
+       test  <- unCx cond
+       cthen <- unEx bod
+       lthen <- newLabel 
+       lend  <- newLabel
+       tmp <- newTemp
+       return $ Ex $ Eseq (seq
+            [ test (lthen, lend)
+            , Label lthen, Move (Temp tmp) cthen   
+            , Label lend
+            ]) (Temp tmp)
+    
     -- ifThenElseExp :: BExp -> BExp -> BExp -> w BExp
-    ifThenElseExp cond bod els = undefined --error "COMPLETAR"
+    ifThenElseExp cond bod els = do
+        test  <- unCx cond
+        cthen <- unEx bod
+        celse <- unEx els
+        lthen <- newLabel 
+        lelse <- newLabel
+        lend  <- newLabel
+        tmp <- newTemp
+        return $ Ex $ Eseq (seq
+            [ test (lthen, lelse)
+            , Label lthen, Move (Temp tmp) cthen, Jump (Name lend) lend   
+            , Label lelse, Move (Temp tmp) celse
+            , Label lend
+            ]) (Temp tmp)
+
     -- ifThenElseExpUnit :: BExp -> BExp -> BExp -> w BExp
     ifThenElseExpUnit _ _ _ = undefined --error "COmpletaR?"
+
+    
+
     -- assignExp :: BExp -> BExp -> w BExp
     assignExp cvar cinit = do
         cvara <- unEx cvar
