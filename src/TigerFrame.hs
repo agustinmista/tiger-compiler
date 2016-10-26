@@ -2,7 +2,6 @@ module TigerFrame where
 
 import TigerTemp
 import TigerTree 
-
 import Prelude hiding (exp)
 
 import qualified Data.Text as T
@@ -45,7 +44,7 @@ localsInicial = 0
 calldefs = [rv]
 specialregs = [rv, fp, sp]
 
-data Access = InFrame Int | InReg Temp
+data Access = InFrame Int | InReg Temp  -- inFrame(X) : localización a offset X del fp ; InReg("r"): localización en el registro r
     deriving Show
 data Frag = Proc Stm Frame | AString Label [T.Text]
 
@@ -63,7 +62,7 @@ instance Show Frag where
     show (AString l ts) = show l ++ ":\n" ++ (foldr (\t ts -> ("\n\t" ++ T.unpack t) ++ ts) "" ts)
 data Frame = Frame {
         name :: T.Text,
-        formals :: [Bool],
+        formals :: [Bool], -- los k parametros formales estan escapados?
         locals :: [Bool],
         actualArg :: Int,
         actualLocal :: Int,    
@@ -90,7 +89,7 @@ externalCall :: String -> [Exp] -> Exp
 externalCall s = Call (Name $ T.pack s) 
 
 allocArg :: (TLGenerator w) => Frame -> Bool -> w (Frame, Access)
-allocArg fr True = 
+allocArg fr True =   
     let actual = actualArg fr 
         acc = InFrame $ actual + argsGap in
     return (fr{actualArg = actual +1}, acc)
@@ -98,6 +97,9 @@ allocArg fr False = do
     s <- newTemp
     return (fr, InReg s)
 
+
+--allocLocal f true  aloca una nueva variable local en un frame f. Esto retorna donde la guardo (Access)
+--el booleano indica si la nueva variable esta escapada o no.
 allocLocal :: (TLGenerator w) => Frame -> Bool -> w (Frame, Access)
 allocLocal fr True = 
     let actual = actualLocal fr 

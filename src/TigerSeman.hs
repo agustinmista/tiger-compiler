@@ -431,7 +431,7 @@ buscarM s ((s',t,i):xs) | s == s' = Just (i,t)
                         | otherwise = buscarM s xs
 
 
---------------------------------------------------------------------------------
+
 transVar :: (Manticore w, FlorV w) => Var -> w (BExp, Tipo)
 transVar (SimpleVar s) = do
     (ty, acc, lvl) <-  getTipoValV s
@@ -487,53 +487,89 @@ transDec :: (Manticore w, FlorV w) => Dec -> w [BExp] -- por ahora...
 transDec w@(TypeDec ls) = let (_,_,p) = head ls
                           in do addpos (addTypos ls) p (ppD w)
                                 return []
-transDec w@(VarDec s mb mty init p) = do
-        (cinit, ety) <- transExp init
-        case mty of
-            Just ty -> do
-                    tty <- addpos (getTipoT ty) p (ppD w)
-                    ifNM (tiposIguales tty ety) (errorTT p (ppD w) $ "Se esperaba un valor de tipo " ++ show ty ++ " y se tiene un valor de tipo " ++ show ety) $ return ()
-            Nothing -> return ()
+
+
+
+
+transDec w@(VarDec s mb Nothing init p) = do
+       (cinit, tinit)     <- transExp init
+       nlvl               <- getActualLevel
+       acc                <- allocLocal (isJust mb) 
+ 
+       case tinit of 
+        	TNil    -> errorTT p (ppD w) "declaracion: se intento asignar Nil a una variable sin signatura de tipo"
+        	TInt RO -> insertValV s (TInt RW,acc,nlvl)
+                t       -> insertValV s (t, acc, nlvl)
+       return [cinit]
+
+
+transDec w@(VarDec s mb (Just t) init p) = do
+        (cinit, tinit) <- transExp init
+        t' <- addpos (getTipoT t) p (ppD w)
+        C.unlessM (tiposIguales t' tinit) (errorTT p (ppD w) $ "Se esperaba un valor de tipo " ++ show t' ++ " y se tiene un valor de tipo " ++ show tinit)
         nlvl <- getActualLevel
         acc <- allocLocal (isJust mb)
-        insertValV s (ety,acc, nlvl)
+        insertValV s (t',acc, nlvl)
         return [cinit]
-transDec w@(FunctionDec fb) = do
-        mapM_ (\(nm, args, mret, bd, p) -> do
-            u <- ugen
-            let lbl = T.append nm $ T.append (T.pack $ '.' : posToLabel p) (T.pack $ '.' : show u)
-            (tps,escs) <- foldM (\(tys,escs) (_,esc,t) -> do
+
+
+
+transDec w@(FunctionDec fb) =
+    let symbols = map (\(s,_,_,_,_) -> s) fb --extraemos los nombres
+        (_,_,_,_,p) = head fb                --la posicion de la 1ra 
+    in if length symbols /= length (remDup symbols)  --chequeamos que no haya funciones declaradas dos veces en el mismo batch
+        then let dupFuncs =  map (show . T.unpack . head) $ filterByLength (>1) symbols
+                 listedDups = intercalate "," dupFuncs   
+             in errorTT p (ppD w) $ "identificadores de funcion " ++ listedDups ++ " repetidos en un mismo batch"
+        else do 
+            -- primera pasada insertando las interfaces a la tabla de funciones
+            mapM_ (\(s, flds, ms, e, p) -> do
+                u <- ugen
+                label <- genLabel s p u
+                --obtenemos el tipo y los escapes de cada argumento
+                (flds',escs) <-  foldM (\(ts,es) (_,esc,t) -> do
                     ty <- fromTy t
                     case esc of
-                        Just True -> return (ty:tys, True :escs)
-                        _ -> return (ty:tys, False :escs)
-                    ) ([],[]) args
-            level <- topLevel -- level actual
-            let nlvl = newLevel level lbl (reverse escs)
-            case mret of
-                Just p' -> do
-                    ty <- getTipoT p'
-                    insertFunV nm (nlvl,lbl,reverse tps,ty,False)
-                Nothing -> insertFunV nm (nlvl,lbl,tps,TUnit,False)
-            ) fb -- insertamos todos las interfaces de las funciones...
-        mapM (\(nm, args, mret, bd, p) -> do
-            (nlvl,lbl,argsty,ty,_) <- getTipoFunV nm
-            preFunctionDec nlvl
-            setRPoint -- guardamos el entorno
-            actualLev <- getActualLevel
-            mapM_ (\((nm,b,_), typ) -> do
-                acc <- allocArg (isJust b)
-                insertValV nm (typ,acc,actualLev)) (zip args argsty)
-            t <- topLevel
-            (cb, tyb) <- transExp bd
-            ifNM (tiposIguales ty tyb) (errorTT p (ppD w)  $ "El cuerpo de la función " ++ show nm ++ " tiene tipo " ++ show tyb ++ " y se esperaba " ++ show ty)
-             $ do
-                e <- ifM (tiposIguales tyb TUnit) (functionDec cb t True) (functionDec cb t False)
-                restoreRPoint
-                posFunctionDec
-                return e
-                    ) fb
-     
+                        Just True -> return (ty:ts, True :es)
+                        _ -> return (ty:ts, False :es)
+                    ) ([],[]) flds
+                --obtenemos el level actual 
+                level <- topLevel 
+                --creamos un nuevo level
+                let nlvl = newLevel level label (reverse escs)
+                --analizamos si es un procedimiento o funcion
+                --y agregamos la interfaz a la tabla
+                case ms of
+                    Nothing -> insertFunV s  (nlvl, label, flds', TUnit, False)      
+                    Just rt -> do
+                        rt' <- getTipoT rt
+                        insertFunV s (nlvl, label, flds', rt', False)
+                ) fb  
+            -- segunda pasada, insertamos en la tabla de valores los argumentos
+            -- y analizamos los cuerpos de las funciones
+            mapM (\(s, flds, ms, e, p) -> do
+               (nlvl,label,ts,tr,_) <- getTipoFunV s 
+               preFunctionDec nlvl
+               setRPoint 
+               actualLev <- getActualLevel
+               -- Insertamos los argumentos a la tabla de valores
+               mapM_ (\((s,vesc,_),t) -> do
+                        a <- allocArg (isJust vesc)
+                        insertValV s (t,a,actualLev)
+                     ) (zip flds ts)
+               t <- topLevel
+               (ce,e') <- transExp e
+               C.unlessM (tiposIguales e' tr) (errorTT p (ppD w) $ "se esperaba que el tipo del cuerpo de la funcion " ++
+                                                                    show s ++ " fuera " ++ show tr ++ " y se tiene " ++ show e')
+               
+               ans <- ifM (tiposIguales e'  TUnit) (functionDec ce t True) (functionDec ce t False)
+               restoreRPoint
+               posFunctionDec
+               return ans 
+               ) fb
+
+
+      
 transExp :: (Manticore w, FlorV w, Functor w) => Exp -> w (BExp, Tipo)
 transExp w@(VarExp v p) = addpos (transVar v) p (ppE w) 
 transExp (UnitExp {}) = do
@@ -549,45 +585,50 @@ transExp (StringExp s _) = do
     c <- stringExp $ T.pack s
     return (c,TString)
 transExp w@(CallExp nm args p) = do 
-        (lvl, lbl, as, ret, ext) <- addpos (getTipoFunV nm) p (ppE w)
-        args' <- zipWithM (\ earg rarg -> do
-                                (carg, tearg) <- transExp earg
-                                C.unlessM (tiposIguales tearg rarg) (errorTT p (ppE w)  $ "CallExp:Tipos diferentes" ++ show tearg ++ show rarg)
-                                return carg) args as
-        -- Eventualmente querriamos obtener los IR de cada exp..
-        c <- ifM (tiposIguales ret TUnit)
-                (callExp lbl ext True  lvl args')
-                (callExp lbl ext False lvl args')
-        return (c,ret)
+        (lvl,lbl,ts,tr,e) <- handle (getTipoFunV nm) (\t -> errorTT p (ppE w) $ "no se encontro la definicion de la funcion " ++ show nm)
+        C.unless (P.length ts == P.length args) $ errorTT p (ppE w) $ "llamada a funcion " ++ T.unpack nm ++ ": numero de argumentos erroneo"
+
+        let checkTypes t e = do -- armo una función que compara un tipo esperado con el
+            (c,t') <- transExp e    -- calculado recursivamente, sale con error si falla y retorna los ci
+            ifM (tiposIguales t t') (return t)
+                (errorTT p (ppE w) $ "llamada a funcion " ++ T.unpack nm ++ ": tipo de argumento invalido, se esperaba "
+                           ++ show t ++ " pero se encontro " ++ show t')
+            return c
+        -- ts:   parametros formales
+        -- args: lista de parametros reales (expresiones)
+        cs <- zipWithM checkTypes ts args
+        c  <- ifM (tiposIguales tr TUnit) 
+                  (callExp lbl e True  lvl cs)
+		  (callExp lbl e False lvl cs)
+        return (c,tr)
+
 transExp w@(OpExp el' oper er' p) = do -- Esta va gratis
         (cl,el) <- transExp el'
         (cr,er) <- transExp er'
-        ifNM (tiposIguales el er) (errorTT p (ppE w) ("OpExp:Tipos diferentes" ++ show el ++ show er))
-         $  case oper of
-                EqOp  ->
-                        if (okOp el er oper)
-                        then do
-                                c <- ifM (tiposIguales el TString) (binOpStrExp cl oper cr) (binOpIntRelExp cl oper cr)
-                                return (c,TInt RW)
-                        else (errorTT p (ppE w) ("Tipos no comparables " ++ show el ++ show er ++ show oper))
-                NeqOp ->
-                        if (okOp el er oper)
-                        then do
-                                c <- ifM (tiposIguales el TString) (binOpStrExp cl oper cr) (binOpIntRelExp cl oper cr)
-                                return (c,TInt RW)
-                        else (errorTT p (ppE w) ("Tipos no comparables " ++ show el ++ show er ++ show oper))
-                PlusOp ->
-                        ifNM (tiposIguales el $ TInt RW) (errorTT p (ppE w) ("Tipo " ++ show el' ++ " no es un entero"))
-                        $ binOpIntExp cl oper cr >>= \c -> return (c,TInt RW)
-                MinusOp ->
-                         ifNM (tiposIguales el $ TInt RW) (errorTT p (ppE w) ("Tipo " ++ show el' ++ " no es un entero"))
-                         $ binOpIntExp cl oper cr >>= \c -> return (c,TInt RW)
-                TimesOp -> ifNM (tiposIguales el $ TInt RW) (errorTT p (ppE w) ("Tipo " ++ show el' ++ " no es un entero"))
-                            $ binOpIntExp cl oper cr >>= \c -> return (c,TInt RW)
-                DivideOp ->
-                        ifNM (tiposIguales el $ TInt RW) (errorTT p (ppE w) ("Tipo " ++ show el' ++ " no es un entero"))
-                        $ binOpIntExp cl oper cr >>= \c -> return (c,TInt RW)
-                _ -> ifM (tiposIguales el $ TInt RW)
+        C.unlessM (tiposIguales el er) (errorTT p (ppE w) ("tipos " ++ show el ++ " y " ++ show er ++ " no son comparables"))
+        case oper of
+            EqOp  -> do
+                    C.unless (okOp el er oper) (errorTT p (ppE w) ("tipos " ++ show el ++ " y " ++ show er ++ " no son comparables mediante " ++ show oper))
+                    c <- ifM (tiposIguales el TString) (binOpStrExp cl oper cr) (binOpIntRelExp cl oper cr)
+                    return (c,TInt RW)                  
+            NeqOp -> do
+                    C.unless (okOp el er oper) (errorTT p (ppE w) ("tipos " ++ show el ++ " y " ++ show er ++ " no son comparables mediante " ++ show oper))
+                    c <- ifM (tiposIguales el TString) (binOpStrExp cl oper cr) (binOpIntRelExp cl oper cr)
+                    return (c,TInt RW)
+            PlusOp -> do
+                    C.unlessM (tiposIguales el $ TInt RW) (errorTT p (ppE w) ("tipos " ++ show el' ++ " no es un entero"))
+                    binOpIntExp cl oper cr >>= \c -> return (c,TInt RW)
+  
+            MinusOp ->do
+                     C.unlessM (tiposIguales el $ TInt RW) (errorTT p (ppE w) ("tipos " ++ show el' ++ " no es un entero"))
+                     binOpIntExp cl oper cr >>= \c -> return (c,TInt RW)
+            TimesOp -> do
+                        C.unlessM (tiposIguales el $ TInt RW) (errorTT p (ppE w) ("tipos " ++ show el' ++ " no es un entero"))
+                        binOpIntExp cl oper cr >>= \c -> return (c,TInt RW)
+            DivideOp -> do  
+                    C.unlessM (tiposIguales el $ TInt RW) (errorTT p (ppE w) ("tipos " ++ show el' ++ " no es un entero"))
+                    binOpIntExp cl oper cr >>= \c -> return (c,TInt RW) 
+            _ -> ifM (tiposIguales el $ TInt RW)
                                 (do
                                     c <- binOpIntRelExp cl oper cr
                                     return (c, TInt RW))
@@ -597,20 +638,20 @@ transExp w@(OpExp el' oper er' p) = do -- Esta va gratis
                                         return (c, TInt RW))
                                     (errorTT p (ppE w) ("Elementos de tipo" ++ show el ++ "no son comparables")))
 
+
 transExp w@(RecordExp flds rt p) = do  -- Se debe respetar el orden de los efectos
-        recTy <- addpos (getTipoT rt) p (ppE w) -- Buscamos el tipo de rt
-        case recTy of -- Chequeamos que el tipo real sea Record...
-            TRecord rflds _ -> do
-                flds'' <- mapM (\(s,e) -> do {(ce,e') <- transExp e; return ((ce,s),(s,e'))}) flds
-                let (cds,flds') = unzip flds''
-                let sflds = sortBy (comparing fst) flds' -- Asumimos que estan ordenados los campos del record.
-                (m, b) <- cmpZip flds' rflds
-                if b
-                    then do
-                        c <- recordExp (map (\(cb,s) -> (cb,m M.! s)) cds)
-                        return (c, recTy)
-                    else (errorTT p (ppE w) $ "Error en los campos del records..." ++ show flds' ++ show rflds)
-            _ -> errorTT p (ppE w) ("El tipo[" ++ show rt ++ "NO es un record")
+        rType <- addpos (getTipoT rt) p (ppE w) -- Buscamos el tipo de rt
+        case rType of 
+            TRecord decFlds _ -> do
+                typedFlds <- mapM (\(s,e) -> transExp e >>= \(ce,e') -> return ((ce,s),(s,e')) ) flds                
+                let (cs,flds') = unzip typedFlds
+                    sortedFlds = sortBy (comparing fst) flds'
+                (mon,cond) <- cmpZip sortedFlds decFlds 
+                if cond
+                    then ( ( recordExp (map (\(cb,s) -> (cb,mon M.! s)) cs)) >>= \c -> return (c,rType) )
+                    else (errorTT p (ppE w) $ "record invalido, se esperaba: " ++ show decFlds
+                                                    ++ " pero se encontro: " ++ show typedFlds)
+            _ -> errorTT p (ppE w) $ "se esperaba un record, pero se encontro: " ++ show rt
 
 transExp (SeqExp es p) = do -- Va gratis
         es' <- mapM transExp es
@@ -620,64 +661,68 @@ transExp (SeqExp es p) = do -- Va gratis
         return (c,ty)
 
 transExp w@(AssignExp var exp p) = do
-        (cv,tvar) <- transVar var
-        (cvl,tval) <- transExp exp 
-        ifM (not <$> (tiposIguales tvar tval)) (errorTT p (ppE w) "Error diferentes tipos en la asignación")
-            (if tvar == (TInt RO)
-                then (errorTT p (ppE w) $ "La variable " ++ show var ++ " es de tipo read only")
-                else (assignExp cv cvl >>= \c ->return (c,TUnit)))
+        (cv,var')  <- addpos  (transVar var) p (ppE w)
+        (cvl,exp') <- transExp exp
+        matches <- tiposIguales var' exp'
+        if not matches
+           then errorTT p (ppE w) $ "asignacion: se esperaba valor de tipo " ++ show var' ++ " y se tiene valor de tipo " ++ show exp'
+           else if var' == (TInt RO)
+                then errorTT p (ppE w) "asignacion: se intento asignar una variable RO"
+                else (assignExp cv cvl >>= \c ->return (c,TUnit))
 
 transExp w@(IfExp co th Nothing p) = do
         (cco,co') <- transExp co
-        ifM (not <$> tiposIguales co' (TInt RW)) (errorTT p (ppE w) "Error en la condición")
-            $ transExp th >>= \(cth,th') ->
-                ifM (not <$> tiposIguales th' TUnit) (errorTT p (ppE w) "La expresión del then no es de tipo unit")
-                 $ ifThenExp cco cth >>= \c -> return (c,TUnit)
+        C.unlessM (tiposIguales co' $ TInt RW) $ errorTT p (ppE w) $ "if: la condicion no es de tipo " ++ show (TInt RW)
+        (cth,th') <- transExp th
+        C.unlessM (tiposIguales th' TUnit) $ errorTT p (ppE w) $ "if: el cuerpo no es de tipo " ++ show TUnit
+        c <-  ifThenExp cco cth
+        return (c,TUnit) 
 
 transExp w@(IfExp co th (Just el) p) = do 
         (cco,co') <- transExp co
-        ifNM (tiposIguales co' $ TInt RW) (errorTT p (ppE w) "Error en la condición")
-            $   do
-                    (cth,th') <- transExp th
-                    (cel,el') <- transExp el
-                    ifNM (tiposIguales th' el') (errorTT p (ppE w) "Los branches tienen diferentes tipos...")
-                        $ ifThenElseExp cco cth cel >>= \c -> return (c,th')
+        C.unlessM (tiposIguales co' $ TInt RW) $ errorTT p (ppE w) $ "if: la condicion no es de tipo " ++ show (TInt RW)
+        (cth,th') <- transExp th
+        (cel,el') <- transExp el
+        C.unlessM (tiposIguales th' el') $ errorTT p (ppE w) "if: las ramas tienen distinto tipo"
+        c <- ifThenElseExp cco cth cel
+        return (c,th')
+
+
+--------------------------------------------------------------------------------
+
+
+
 
 transExp w@(WhileExp co body p) = do
         (cco,co') <- transExp co
-        ifNM (tiposIguales co' $ TInt RW) (errorTT p (ppE w) "La condición no es un booleano")
-            $
-            preWhileforExp >>
-            transExp body >>= \(cb,body') ->
-            ifNM (tiposIguales body' TUnit) (errorTT p (ppE w) "El body del while no es de tipo unit...")
-            $ do
-                lvl <- topLevel
-                c <- whileExp cco cb
-                posWhileforExp
-                return (c,TUnit)
+        C.unlessM (tiposIguales co' $ TInt RW) $ errorTT p (ppE w) $ "while: la condicion no es de tipo " ++ show (TInt RW)
+        preWhileforExp
+        (cb,body') <- transExp body
+        C.unlessM (tiposIguales body' TUnit) $ errorTT p (ppE w) $ "while: el cuerpo no es de tipo " ++ show TUnit
+        lvl <- topLevel
+        c <- whileExp cco cb
+        posWhileforExp
+        return (c,TUnit)
 
 transExp w@(ForExp nv mb lo hi bo p) = do
         (clo,lo') <- transExp lo
-        ifNM (tiposIguales lo' $ TInt RW) (errorTT p (ppE w) "La cota inferior no es un int...")
-            $ transExp hi >>= \(chi,hi')  ->
-            ifNM (tiposIguales hi' $ TInt RW) (errorTT p (ppE w) "La cota superior no es un int...")
-            $ do
-                setRPoint -- guardamos antes de insertar el iterador
-                --- Generamos eliterador
-                preWhileforExp
-                nlvl <- getActualLevel
-                acc <- allocLocal (isJust mb)
-                insertVRO nv (TInt RO, acc, nlvl)
-                cvar <- varDec acc
-                ---
-                (cbo,bo') <- transExp bo
-                ifNM (tiposIguales bo' TUnit) (errorTT p (ppE w) "el cuerpo del for tiene que ser de tipo unit...")
-                 $ do
-                    c <- forExp clo chi cvar cbo
-                    posWhileforExp
-                    restoreRPoint -- volvemos al punto anterior
-                    return (c,TUnit)
+        C.unlessM (tiposIguales lo' $ TInt RW) $ errorTT p (ppE w) $ "for: la cota inferior no es de tipo " ++ show (TInt RW)
+        (chi,hi') <- transExp hi
+        C.unlessM (tiposIguales hi' $ TInt RW) $ errorTT p (ppE w) $ "for: la cota superior no es de tipo " ++ show (TInt RW)
+        setRPoint
+        preWhileforExp
+        nvlv <- getActualLevel
+        acc <- allocLocal (isJust mb) 
+        insertVRO nv (TInt RO,acc,nvlv)
+        cvar <- varDec acc
+        (cbo,bo') <- transExp bo
+        C.unlessM (tiposIguales bo' $ TUnit) $ errorTT p (ppE w) $ "for: el cuerpo no es de tipo " ++ show TUnit
+        c <- forExp clo chi cvar cbo
+        posWhileforExp
+        restoreRPoint
+        return (c,TUnit)
 
+        
 transExp(LetExp dcs body p) = do -- Va gratis...
         setRPoint
         dcs' <- mapM transDec dcs
@@ -692,13 +737,15 @@ transExp(BreakExp p) = do
     return (c,TUnit)
 
 transExp w@(ArrayExp sn cant init p) = do
-        ty <- getTipoT sn
-        case ty of
-            TArray t _ -> do
-                (ccant,cant') <- transExp cant
-                C.unlessM (tiposIguales cant' $ TInt RW) (errorTT p  (ppE w) "La cantidad debería ser int...")
-                (cinit,tinit) <- transExp init
-                C.unlessM  (tiposIguales tinit t) (errorTT p (ppE w) $"el valor inicial es de tipo " ++ show tinit ++ " cuando debería ser " ++ show t)
-                c <- arrayExp ccant cinit
-	        return (c,ty)
-            _ -> errorTT p (ppE w) $ "Se esperaba un elemento de tipo " ++ show ty
+        sn' <- getTipoT sn
+        (ccant,cant') <- transExp cant
+        (cinit,init') <- transExp init 
+        C.unlessM (tiposIguales cant' (TInt RW)) $ errorTT p (ppE w) $ "array: el tamaño no es de tipo " ++ show (TInt RW) 
+        case sn' of
+            TArray t _ -> do 
+                     C.unlessM (tiposIguales t init') $ errorTT p (ppE w) $ "array: se declaro de tipo " ++ show t ++ " y se lo intento inicializar con tipo " ++ show init'
+                     c <- arrayExp ccant cinit
+	             return (c,sn')
+            x -> errorTT p (ppE w) $ "array: el tipo " ++ show x ++  " no es un array"
+
+

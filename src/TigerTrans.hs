@@ -43,9 +43,13 @@ getNlvl ((_,i):_) = i
 setFrame :: Frame -> Level -> Level
 setFrame f ((_,l):xs) = (f,l) : xs
 
-newLevel :: Level -> T.Text -> [Bool] -> Level
+newLevel :: Level -> T.Text -> [Bool] -> Level 
 newLevel [] s bs = [(newFrame s bs,0)]
 newLevel ls@((pF,lvl):_) s bs = (newFrame s bs, lvl+1) : ls
+--In the semantic analysis phase of the Tiger compiler, transDec
+--creates a new "nesting level" for each function by calling
+--newLevel
+
 
 getParent :: Level -> Level
 getParent [] = P.error "No fuimos del outermost level"
