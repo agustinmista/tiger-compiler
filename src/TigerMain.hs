@@ -12,6 +12,7 @@ import TigerParser
 import TigerEscap
 import TigerPretty
 import TigerSeman
+import TigerPrettyIr
 
 import Text.Parsec (runParser)
 import Data.Map.Strict (toList)
@@ -177,7 +178,9 @@ main = handle printException $ do
     -- Analisis semantico
     let seman = runLion $ fromRight east 
     when (isLeft seman) (error $ "error semantico\n" ++ show (fromLeft seman))
-    putStrLn $ "Tipo resultante: " ++ show (fromRight seman)
+    
+    let (f, i1, i2) = fromRight seman
+    putStrLn $ concatMap renderFrag f 
 
    -- OBcodecanon <- evalStateT (do
    --         frags <- codgenStep (fromJust east) (optIr opts')

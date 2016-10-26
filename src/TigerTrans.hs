@@ -163,7 +163,7 @@ instance (FlorV w) => IrGen w where
     procEntryExit lvl bd =  do
         bd' <- unNx bd
         let res = Proc bd' (getFrame lvl)
-        trace ("procEntry") $ pushFrag res
+        pushFrag res
     stringExp t = do
         l <- newLabel
         let ln = T.append (T.pack ".long ")  (T.pack $ show $ T.length t)

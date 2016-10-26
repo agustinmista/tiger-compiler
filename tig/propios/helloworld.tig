@@ -1,1 +1,1 @@
-(print("HOLA!");0)
+if 0 then 5 else (if 1 then 4 else 9)
