@@ -188,9 +188,12 @@ instance (FlorV w) => IrGen w where
                         e <- unEx bd
                         return $ Move (Temp rv) e
         procEntryExit lvl (Nx body)
-        return $ Ex $ Const 0
+        return $ Ex $ Const 0 
+    
+    simpleVar acc level = do
+        actual <- getActualLevel
+        return $ Ex $ exp acc (actual - level)
 
-    simpleVar acc level = undefined --error "COMPLETAR"
 
     varDec acc = do { i <- getActualLevel; simpleVar acc i}
 
@@ -219,7 +222,12 @@ instance (FlorV w) => IrGen w where
     recordExp flds = undefined --error "COMPLETAR"
 
     -- callExp :: Label -> Bool -> Bool -> Level -> [BExp] -> w BExp
-    callExp name external isproc lvl args = undefined --error "COMPLETAR"
+    callExp name external isproc lvl args = undefined
+       {-do
+        tmp <- newTemp
+        cname <- unEx name
+        cargs <- mapM unEx args
+        if isproc then return $ Nx $ Exp $ -}
 
     -- letExp :: [BExp] -> BExp -> w BExp
     letExp [] e = do -- Puede parecer al dope, pero no...
