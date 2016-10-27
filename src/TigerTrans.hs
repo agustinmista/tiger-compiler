@@ -218,7 +218,7 @@ instance (FlorV w) => IrGen w where
         lfin <- topSalida
         case lfin of
             Just fin -> return $ Nx $ Jump (Name fin) fin
-            Nothing  -> error $ internal $ T.pack "Break fuera de loop"
+            Nothing  -> error $ internal $ T.pack "\tBreak fuera de loop"
             
     -- seqExp :: [BExp] -> w BExp
     seqExp [] = return $ Nx $ ExpS $ Const 0

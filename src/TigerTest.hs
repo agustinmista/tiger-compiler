@@ -21,7 +21,9 @@ runTestDirs args dir = do
 
 runTest :: [String] -> String -> IO (String, Int)
 runTest args path = do
-    printTestHeader path
+    setSGR [SetColor Foreground Vivid Yellow]
+    putStrLn path  
+    setSGR [Reset]
     res <- withArgs (path:args) Tiger.main
     return (path, res)
 
@@ -37,11 +39,6 @@ getRecursiveContents topPath = do
       else return [path]
   return (concat paths)
 
-printTestHeader :: String -> IO () 
-printTestHeader path = do
-    setSGR [SetColor Foreground Vivid Yellow]
-    putStrLn path  
-    setSGR [Reset]
 
 printHeader :: IO () 
 printHeader = do
@@ -52,8 +49,7 @@ printHeader = do
                     
 printWithColor :: (String, Int) -> IO ()
 printWithColor (t,r) = do
-    putStr $ t ++ " -> "
-    if r == 0 
-        then setSGR [SetColor Foreground Vivid Green] >> putStrLn "[OK]"
-        else setSGR [SetColor Foreground Vivid Red]   >> putStrLn "[FAIL]"
+    let color = if r == 0 then Green else Red
+    setSGR [SetColor Foreground Vivid color]
+    putStrLn t 
     setSGR [Reset]

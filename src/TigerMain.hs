@@ -4,6 +4,7 @@ import System.Exit
 import System.Console.GetOpt
 import Control.Monad
 import Data.Maybe
+import Data.List
 import Data.Either hiding (isLeft)
 import Control.Exception
 
@@ -22,6 +23,7 @@ data Options = Options {
         optSrc :: Bool,
         optAST :: Bool,
         optPPA :: Bool,
+        optFgs :: Bool,
         optEsc :: Bool
     } deriving Show
 
@@ -30,6 +32,7 @@ defaultOptions :: Options
 defaultOptions = Options { optSrc = False
                          , optAST = False
                          , optPPA = False
+                         , optFgs = False
                          , optEsc = False }
 
 -- Descriptor de opciones de compilacion
@@ -37,6 +40,7 @@ options :: [OptDescr (Options -> Options)]
 options = [ Option ['i'] ["input"]  (NoArg (\opts -> opts {optSrc = True})) "show input source code",
             Option ['a'] ["ast"]    (NoArg (\opts -> opts {optAST = True})) "show AST after escape analysis",
             Option ['p'] ["pretty"] (NoArg (\opts -> opts {optPPA = True})) "show pretty printed AST after escape analysis",
+            Option ['f'] ["frags"]  (NoArg (\opts -> opts {optFgs = True})) "show generated IR fragments",
             Option ['e'] ["escape"] (NoArg (\opts -> opts {optEsc = True})) "show escape analysis step by step"]
 
 -- Parsea los argumentos de linea de comando, devuelve un mensaje de error
@@ -117,12 +121,17 @@ printPrettyAst ast = do
     putStrLn (renderExp ast)
     putStrLn "**** pretty ast end ****\n"
 
+printFrags frags = do
+    putStrLn "**** generated frags begin ****"
+    putStrLn $ (concatMap renderFrag) frags
+    putStrLn "**** generated frags end ****\n"
+
 printSourceCode src = do
     let srcLines = lines src
         maxWidth = length $ digs $ length srcLines
         padNumber n = take (maxWidth - (length $ digs n)) [' ', ' '..] ++ show n
     putStrLn "**** input source code begin ****"
-    putStrLn $ unlines $ zipWith (\l t -> padNumber l ++ "|" ++ t) [1..] $ lines src 
+    putStrLn $ intercalate "\n" $ zipWith (\l t -> padNumber l ++ "|" ++ t) [1..] $ lines src 
     putStrLn "**** input source code end ****\n"
    
 digs :: Int -> [Int]
@@ -179,8 +188,8 @@ main = handle printException $ do
     let seman = runLion $ fromRight east 
     when (isLeft seman) (error $ "error semantico\n" ++ show (fromLeft seman))
     
-    let (f, i1, i2) = fromRight seman
-    putStrLn $ concatMap renderFrag f 
+    let (frags, i1, i2) = fromRight seman
+    when (optFgs opts) $ printFrags frags
 
    -- OBcodecanon <- evalStateT (do
    --         frags <- codgenStep (fromJust east) (optIr opts')
