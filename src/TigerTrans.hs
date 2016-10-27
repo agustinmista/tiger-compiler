@@ -58,7 +58,8 @@ getParent (_:xs) = xs
 outermost :: Level
 outermost = [(newFrame (T.pack "_undermain") [],-1) ]
 
-class (Monad w, TLGenerator w, Daemon w) => FlorV w where
+
+class (Monad w, TLGenerator w, Daemon w) => FlorV w where --Acá hay que completar algunas funciones
     -- |Level managment
     getActualLevel :: w Int
     upLvl :: w ()
@@ -97,12 +98,12 @@ class IrGen w where
     nilExp :: w BExp
     intExp :: Int -> w BExp
     stringExp :: T.Text -> w BExp
-    simpleVar :: Access -> Int -> w BExp
+    simpleVar :: Access -> Int -> w BExp --Falta completar
     varDec :: Access -> w BExp
-    fieldVar :: BExp -> Int -> w BExp
+    fieldVar :: BExp -> Int -> w BExp --Falta completar
     subscriptVar :: BExp -> BExp -> w BExp
-    recordExp :: [(BExp,Int)]  -> w BExp
-    callExp :: Label -> Bool -> Bool -> Level -> [BExp] -> w BExp
+    recordExp :: [(BExp,Int)]  -> w BExp -- Falta completar
+    callExp :: Label -> Bool -> Bool -> Level -> [BExp] -> w BExp --Falta completar
     letExp :: [BExp] -> BExp -> w BExp
     breakExp :: w BExp
     seqExp :: [BExp] -> w BExp
@@ -112,14 +113,14 @@ class IrGen w where
     forExp :: BExp -> BExp -> BExp -> BExp -> w BExp
     ifThenExp :: BExp -> BExp -> w BExp
     ifThenElseExp :: BExp -> BExp -> BExp -> w BExp
-    ifThenElseExpUnit :: BExp -> BExp -> BExp -> w BExp
-    assignExp :: BExp -> BExp -> w BExp
+    ifThenElseExpUnit :: BExp -> BExp -> BExp -> w BExp --Falta completar
+    assignExp :: BExp -> BExp -> w BExp 
     preFunctionDec :: Level -> w ()
     posFunctionDec :: w ()
     functionDec :: BExp -> Level -> Bool -> w BExp
-    binOpIntExp :: BExp -> Abs.Oper -> BExp -> w BExp
-    binOpIntRelExp :: BExp -> Abs.Oper -> BExp -> w BExp
-    binOpStrExp :: BExp -> Abs.Oper -> BExp -> w BExp
+    binOpIntExp :: BExp -> Abs.Oper -> BExp -> w BExp --Falta completar
+    binOpIntRelExp :: BExp -> Abs.Oper -> BExp -> w BExp --Falta completar
+    binOpStrExp :: BExp -> Abs.Oper -> BExp -> w BExp --Falta completar
     arrayExp :: BExp -> BExp -> w BExp
 
 seq :: [Stm] -> Stm
@@ -160,21 +161,26 @@ unCx (Ex (Const _)) = return (\(t,_) -> Jump (Name t) t)
 unCx (Ex e) = return (uncurry (CJump NE e (Const 0)))
 
 instance (FlorV w) => IrGen w where
+
     procEntryExit lvl bd =  do
         bd' <- unNx bd
         let res = Proc bd' (getFrame lvl)
         pushFrag res
+
     stringExp t = do
         l <- newLabel
         let ln = T.append (T.pack ".long ")  (T.pack $ show $ T.length t)
         let str = T.append (T.append (T.pack ".string \"") t) (T.pack "\"")
         pushFrag $ AString l [ln,str]
         return $ Ex $ Name l
+
     preFunctionDec lvl = do
         pushSalida Nothing  -- In case a break is called.
         upLvl
         pushLevel lvl
+
     posFunctionDec = popSalida >> downLvl
+
     -- functionDec :: BExp -> Level -> Bool -> w BExp
     functionDec bd lvl proc = do
         body <- if proc then unNx bd
@@ -183,12 +189,19 @@ instance (FlorV w) => IrGen w where
                         return $ Move (Temp rv) e
         procEntryExit lvl (Nx body)
         return $ Ex $ Const 0
+
     simpleVar acc level = undefined --error "COMPLETAR"
+
     varDec acc = do { i <- getActualLevel; simpleVar acc i}
+
     unitExp = return $ Ex (Const 0)
+
     nilExp = return $ Ex (Const 0)
+
     intExp i = return $ Ex (Const i)
+
     fieldVar be i = undefined --error "COMPLETAR"
+
     -- subscriptVar :: BExp -> BExp -> w BExp
     subscriptVar var ind = do
         evar <- unEx var
@@ -201,10 +214,13 @@ instance (FlorV w) => IrGen w where
                         ,Move (Temp tind) eind
                         ,ExpS $ externalCall "_checkIndex" [Temp tvar, Temp tind]])
                 (Mem $ Binop Plus (Temp tvar) (Binop Mul (Temp tind) (Const wSz)))
+
     -- recordExp :: [(BExp,Int)]  -> w BExp
     recordExp flds = undefined --error "COMPLETAR"
+
     -- callExp :: Label -> Bool -> Bool -> Level -> [BExp] -> w BExp
     callExp name external isproc lvl args = undefined --error "COMPLETAR"
+
     -- letExp :: [BExp] -> BExp -> w BExp
     letExp [] e = do -- Puede parecer al dope, pero no...
             e' <- unEx e
@@ -213,6 +229,7 @@ instance (FlorV w) => IrGen w where
         bes <- mapM unNx bs
         be <- unEx body
         return $ Ex $ Eseq (seq bes) be
+
     -- breakExp :: w BExp
     breakExp = do
         lfin <- topSalida
@@ -233,12 +250,15 @@ instance (FlorV w) => IrGen w where
                     ess <- mapM unNx bfront
                     return $ Ex $ Eseq (seq ess) e'
             _ -> error $ internal $ T.pack "WAT!123"
+
     -- preWhileforExp :: w ()
     preWhileforExp = do
         l <- newLabel
         pushSalida (Just l)
+
     -- posWhileforExp :: w ()
     posWhileforExp = popSalida
+
     -- whileExp :: BExp -> BExp -> Level -> w BExp
     whileExp cond body = do
         test <- unCx cond
@@ -256,6 +276,7 @@ instance (FlorV w) => IrGen w where
                     , Jump (Name init) init
                     , Label last]
             _ -> error $ internal $ T.pack "no label in salida"
+
     -- forExp :: BExp -> BExp -> BExp -> BExp -> w BExp
     forExp lo hi var body = do
        lcond <- newLabel
@@ -276,18 +297,18 @@ instance (FlorV w) => IrGen w where
                          , Label lcond
                          , CJump GT cvar (Const i) last lbody --Falla con entero mas grande
                          , Label last]
-           _ -> do
-             tmp <- newTemp
-             return $ Nx $ seq 
-                [ Move cvar clo
-                , Move (Temp tmp) chi
-                , Jump (Name lcond) lcond
-                , Label lbody
-                , cbody
-                , Move cvar (Binop Plus cvar (Const 1))
-                , Label lcond
-                , CJump GT cvar (Temp tmp) last lbody --Falla con entero mas grande
-                , Label last]
+           _ 	  -> do
+             		 tmp <- newTemp
+                         return $ Nx $ seq 
+	                   [ Move cvar clo
+         	           , Move (Temp tmp) chi
+                	   , Jump (Name lcond) lcond
+                	   , Label lbody
+                	   , cbody
+                	   , Move cvar (Binop Plus cvar (Const 1))
+                	   , Label lcond
+	                   , CJump GT cvar (Temp tmp) last lbody --Falla con entero mas grande
+        	           , Label last]
 
     -- ifThenExp :: BExp -> BExp -> w BExp
     ifThenExp cond bod = do
@@ -321,8 +342,6 @@ instance (FlorV w) => IrGen w where
     -- ifThenElseExpUnit :: BExp -> BExp -> BExp -> w BExp
     ifThenElseExpUnit _ _ _ = undefined --error "COmpletaR?"
 
-    
-
     -- assignExp :: BExp -> BExp -> w BExp
     assignExp cvar cinit = do
         cvara <- unEx cvar
@@ -332,10 +351,13 @@ instance (FlorV w) => IrGen w where
                 t <- newTemp
                 return $ Nx $ seq [Move (Temp t) cin, Move cvara (Temp t)]
             _ -> return $ Nx $ Move cvara cin
+
     -- binOpIntExp :: BExp -> Abs.Oper -> BExp -> w BExp
     binOpIntExp le op re = undefined --error "COMPLETAR"
+
     -- binOpStrExp :: BExp -> Abs.Oper -> BExp -> w BExp
     binOpStrExp strl op strr = undefined --error "COMPLETAR"
+
     -- arrayExp :: BExp -> BExp -> w BExp
     arrayExp size init = do
         sz <- unEx size
