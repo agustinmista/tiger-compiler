@@ -203,7 +203,16 @@ instance (FlorV w) => IrGen w where
 
     intExp i = return $ Ex (Const i)
 
-    fieldVar be i = undefined --error "COMPLETAR"
+    -- fieldVar :: BExp -> Int -> BExp
+    fieldVar be i = do -- Ya ha sido chequeado que el indice i es valido 
+        evar <- unEx be   -- Desempaquetamos la direccion de be
+        tvar <- newTemp   -- Creamos un temporal para guardarla
+        return $ Ex $
+            Eseq
+                (seq    [Move (Temp tvar) evar                         -- Movemos la direccion de be al temporal
+                        ,ExpS $ externalCall "_checkNil" [Temp tvar]]) -- Una funcion de runtime chequea que be no sea nil
+                (Mem $ Binop Plus (Temp tvar) (Binop Mul (Const i) (Const wSz))) --Retornamos la direccion del campo buscado
+
 
     -- subscriptVar :: BExp -> BExp -> w BExp
     subscriptVar var ind = do
@@ -220,6 +229,7 @@ instance (FlorV w) => IrGen w where
 
     -- recordExp :: [(BExp,Int)]  -> w BExp
     recordExp flds = undefined --error "COMPLETAR"
+
 
     -- callExp :: Label -> Bool -> Bool -> Level -> [BExp] -> w BExp
     callExp name external isproc lvl args = undefined
