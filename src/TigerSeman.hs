@@ -19,6 +19,7 @@ import Control.Monad
 import Control.Applicative hiding (Const)
 import Data.Either
 import Data.Maybe
+import Data.Foldable
 import Data.Monoid
 import Control.Arrow
 import Control.Monad.Except
@@ -527,23 +528,24 @@ transDec w@(FunctionDec fb) =
                 u <- ugen
                 label <- genLabel s p u
                 --obtenemos el tipo y los escapes de cada argumento
-                (flds',escs) <-  foldM (\(ts,es) (_,esc,t) -> do
-                    ty <- fromTy t
-                    case esc of
-                        Just True -> return (ty:ts, True :es)
-                        _ -> return (ty:ts, False :es)
-                    ) ([],[]) flds
+                (flds',escs) <- foldrM (\(_,esc,t) (ts, es) -> do    -- foldM asocia a izquierda, y se estaban agregando  
+                    ty <- fromTy t                                   -- elementos a la lista al reves (creo)
+                    case esc of                                      
+                        Just True -> return (ty:ts, True:es)
+                        _ -> return (ty:ts, False:es)
+                        ) ([],[]) flds
+                debug $ show flds'      -- borrar si todo esta bien
                 --obtenemos el level actual 
                 level <- topLevel 
                 --creamos un nuevo level
-                let nlvl = newLevel level label (reverse escs)
+                let nlvl = newLevel level label  escs --(reverse escs) como se agregaban al reves lo elementos hacía falta invertir esto
                 --analizamos si es un procedimiento o funcion
                 --y agregamos la interfaz a la tabla
                 case ms of
                     Nothing -> insertFunV s  (nlvl, label, flds', TUnit, False)      
                     Just rt -> do
                         rt' <- getTipoT rt
-                        insertFunV s (nlvl, label, flds', rt', False)
+                        insertFunV s (nlvl, label, flds', rt', False) -- y como aca no se invertian los flds, quedaba todo al reves
                 ) fb  
             -- segunda pasada, insertamos en la tabla de valores los argumentos
             -- y analizamos los cuerpos de las funciones
