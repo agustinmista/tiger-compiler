@@ -98,9 +98,9 @@ class IrGen w where
     nilExp :: w BExp
     intExp :: Int -> w BExp
     stringExp :: T.Text -> w BExp
-    simpleVar :: Access -> Int -> w BExp --Falta completar
+    simpleVar :: Access -> Int -> w BExp
     varDec :: Access -> w BExp
-    fieldVar :: BExp -> Int -> w BExp --Falta completar
+    fieldVar :: BExp -> Int -> w BExp
     subscriptVar :: BExp -> BExp -> w BExp
     recordExp :: [(BExp,Int)]  -> w BExp -- Falta completar
     callExp :: Label -> Bool -> Bool -> Level -> [BExp] -> w BExp --Falta completar
@@ -315,18 +315,18 @@ instance (FlorV w) => IrGen w where
                          , Label lcond
                          , CJump GT cvar (Const i) last lbody --Falla con entero mas grande
                          , Label last]
-           _ 	  -> do
-             		 tmp <- newTemp
+           _       -> do
+                         tmp <- newTemp
                          return $ Nx $ seq 
-	                   [ Move cvar clo
-         	           , Move (Temp tmp) chi
-                	   , Jump (Name lcond) lcond
-                	   , Label lbody
-                	   , cbody
-                	   , Move cvar (Binop Plus cvar (Const 1))
-                	   , Label lcond
-	                   , CJump GT cvar (Temp tmp) last lbody --Falla con entero mas grande
-        	           , Label last]
+                           [ Move cvar clo
+                           , Move (Temp tmp) chi
+                           , Jump (Name lcond) lcond
+                           , Label lbody
+                           , cbody
+                           , Move cvar (Binop Plus cvar (Const 1))
+                           , Label lcond
+                           , CJump GT cvar (Temp tmp) last lbody --Falla con entero mas grande
+                           , Label last]
 
     -- ifThenExp :: BExp -> BExp -> w BExp
     ifThenExp cond bod = do

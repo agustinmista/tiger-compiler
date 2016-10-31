@@ -498,8 +498,8 @@ transDec w@(VarDec s mb Nothing init p) = do
        acc                <- allocLocal (isJust mb) 
  
        case tinit of 
-        	TNil    -> errorTT p (ppD w) "declaracion: se intento asignar Nil a una variable sin signatura de tipo"
-        	TInt RO -> insertValV s (TInt RW,acc,nlvl)
+                TNil    -> errorTT p (ppD w) "declaracion: se intento asignar Nil a una variable sin signatura de tipo"
+                TInt RO -> insertValV s (TInt RW,acc,nlvl)
                 t       -> insertValV s (t, acc, nlvl)
        return [cinit]
 
@@ -601,7 +601,7 @@ transExp w@(CallExp nm args p) = do
         cs <- zipWithM checkTypes ts args
         c  <- ifM (tiposIguales tr TUnit) 
                   (callExp lbl e True  lvl cs)
-		  (callExp lbl e False lvl cs)
+                  (callExp lbl e False lvl cs)
         return (c,tr)
 
 transExp w@(OpExp el' oper er' p) = do -- Esta va gratis
@@ -747,7 +747,7 @@ transExp w@(ArrayExp sn cant init p) = do
             TArray t _ -> do 
                      C.unlessM (tiposIguales t init') $ errorTT p (ppE w) $ "array: se declaro de tipo " ++ show t ++ " y se lo intento inicializar con tipo " ++ show init'
                      c <- arrayExp ccant cinit
-	             return (c,sn')
+                     return (c,sn')
             x -> errorTT p (ppE w) $ "array: el tipo " ++ show x ++  " no es un array"
 
 
