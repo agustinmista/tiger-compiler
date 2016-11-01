@@ -230,14 +230,33 @@ instance (FlorV w) => IrGen w where
     -- recordExp :: [(BExp,Int)]  -> w BExp
     recordExp flds = undefined --error "COMPLETAR"
 
+    -- Esta funcion sirve para calcular los saltos de frames
+    {- preSL :: Int -> [BExp]
+       preSL 0 = []
+       preSL d = let t <- newTemp
+		 in
+		    seq [Move(Temp t, Binop Plus (Temp t) (Const wSz))
+			,Move(Temp t, Mem (Temp t)):preSL (d-1)
+			]
+    -}
+
+    -- Esta función calcula el Static Link
+    {-   staticL :: Int -> Int ->w BExp
+       staticL x y = Ex(Eseq(preSL(x-y)))
+    -}
 
     -- callExp :: Label -> Bool -> Bool -> Level -> [BExp] -> w BExp
+    -- externa marca si la función llamada es del exterior (cualquiera del runtime)
+    -- isproc marca si la función no devuelve valor (f: A -> Unit)
     callExp name external isproc lvl args = undefined
        {-do
-        tmp <- newTemp
         cname <- unEx name
         cargs <- mapM unEx args
-        if isproc then return $ Nx $ Exp $ -}
+	actual<- getActualLevel
+	sl <- unEx staticL actual lvl
+        if isproc then unitExp
+	return Ex(Eseq(Call(Name cname, sl++cargs)))
+	-}
 
     -- letExp :: [BExp] -> BExp -> w BExp
     letExp [] e = do -- Puede parecer al dope, pero no...
