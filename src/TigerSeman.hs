@@ -39,7 +39,7 @@ none = Ex $ Const 1
 ifNM b t f = ifM (not <$> b) t f
 
 -- Helper para debug
-debug msg = trace msg (return ())
+debug msg = trace (show msg) (return ())
 
 remDup :: Ord a => [a] -> [a]
 remDup = concat . filterByLength (==1)
@@ -527,25 +527,26 @@ transDec w@(FunctionDec fb) =
             mapM_ (\(s, flds, ms, e, p) -> do
                 u <- ugen
                 label <- genLabel s p u
-                --obtenemos el tipo y los escapes de cada argumento
-                (flds',escs) <- foldrM (\(_,esc,t) (ts, es) -> do    -- foldM asocia a izquierda, y se estaban agregando  
-                    ty <- fromTy t                                   -- elementos a la lista al reves (creo)
+                -- obtenemos el tipo y los escapes de cada argumento
+                -- acumulamos los efectos de los parametros de derecha a izquierda
+                (flds',escs) <- foldM (\(ts, es) (_,esc,t) -> do    
+                    ty <- fromTy t                                 
                     case esc of                                      
-                        Just True -> return (ty:ts, True:es)
+                        Just True -> do
+                            return (ty:ts, True:es)
                         _ -> return (ty:ts, False:es)
-                        ) ([],[]) flds
-                debug $ show flds'      -- borrar si todo esta bien
+                        ) ([],[]) (reverse flds)
                 --obtenemos el level actual 
                 level <- topLevel 
                 --creamos un nuevo level
-                let nlvl = newLevel level label  escs --(reverse escs) como se agregaban al reves lo elementos hacía falta invertir esto
+                let nlvl = newLevel level label escs 
                 --analizamos si es un procedimiento o funcion
                 --y agregamos la interfaz a la tabla
                 case ms of
                     Nothing -> insertFunV s  (nlvl, label, flds', TUnit, False)      
                     Just rt -> do
                         rt' <- getTipoT rt
-                        insertFunV s (nlvl, label, flds', rt', False) -- y como aca no se invertian los flds, quedaba todo al reves
+                        insertFunV s (nlvl, label, flds', rt', False) 
                 ) fb  
             -- segunda pasada, insertamos en la tabla de valores los argumentos
             -- y analizamos los cuerpos de las funciones
