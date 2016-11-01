@@ -103,7 +103,7 @@ class IrGen w where
     fieldVar :: BExp -> Int -> w BExp
     subscriptVar :: BExp -> BExp -> w BExp
     recordExp :: [(BExp,Int)]  -> w BExp -- Falta completar
-    callExp :: Label -> Bool -> Bool -> Level -> [BExp] -> w BExp --Falta completar
+    callExp :: Label -> Bool -> Bool -> Level -> [BExp] -> w BExp --Hay que revisarla
     letExp :: [BExp] -> BExp -> w BExp
     breakExp :: w BExp
     seqExp :: [BExp] -> w BExp
@@ -228,7 +228,7 @@ instance (FlorV w) => IrGen w where
                 (Mem $ Binop Plus (Temp tvar) (Binop Mul (Temp tind) (Const wSz)))
 
     -- recordExp :: [(BExp,Int)]  -> w BExp
-    recordExp flds = undefined --error "COMPLETAR"
+    recordExp flds = P.error "recordExp"
 
     -- Esta funcion sirve para calcular los saltos de frames
     {- preSL :: Int -> [BExp]
@@ -249,7 +249,8 @@ instance (FlorV w) => IrGen w where
     -- externa marca si la función llamada es del exterior (cualquiera del runtime)
     -- isproc marca si la función no devuelve valor (f: A -> Unit)
     callExp name external isproc lvl args = undefined
-       {-do
+    {-callExp name external isproc lvl args = P.error "callExp"
+        do
         cname <- unEx name
         cargs <- mapM unEx args
 	actual<- getActualLevel
@@ -377,7 +378,7 @@ instance (FlorV w) => IrGen w where
             ]) (Temp tmp)
 
     -- ifThenElseExpUnit :: BExp -> BExp -> BExp -> w BExp
-    ifThenElseExpUnit _ _ _ = undefined --error "COmpletaR?"
+    ifThenElseExpUnit _ _ _ = P.error "ifThenElseExpUnit"
 
     -- assignExp :: BExp -> BExp -> w BExp
     assignExp cvar cinit = do
@@ -390,10 +391,13 @@ instance (FlorV w) => IrGen w where
             _ -> return $ Nx $ Move cvara cin
 
     -- binOpIntExp :: BExp -> Abs.Oper -> BExp -> w BExp
-    binOpIntExp le op re = undefined --error "COMPLETAR"
+    binOpIntExp le op re = P.error "binOpIntExp"
+    
+    -- binOpIntRelExp :: BExp -> Abs.Oper -> BExp -> w BExp 
+    binOpIntRelExp strl op strr = P.error "binOpIntRelExp"
 
     -- binOpStrExp :: BExp -> Abs.Oper -> BExp -> w BExp
-    binOpStrExp strl op strr = undefined --error "COMPLETAR"
+    binOpStrExp strl op strr = P.error "binOpStrExp"
 
     -- arrayExp :: BExp -> BExp -> w BExp
     arrayExp size init = do
