@@ -123,6 +123,10 @@ class IrGen w where
     binOpStrExp :: BExp -> Abs.Oper -> BExp -> w BExp --Falta completar
     arrayExp :: BExp -> BExp -> w BExp
 
+    --Agregados por Andrea
+    staticL :: Int -> Int ->w BExp
+
+
 seq :: [Stm] -> Stm
 seq [] = ExpS $ Const 0
 seq [s] = s
@@ -229,36 +233,32 @@ instance (FlorV w) => IrGen w where
 
     -- recordExp :: [(BExp,Int)]  -> w BExp
     recordExp flds = P.error "recordExp"
-
+    
     -- Esta funcion sirve para calcular los saltos de frames
-    {- preSL :: Int -> [BExp]
-       preSL 0 = []
-       preSL d = let t <- newTemp
-		 in
-		    seq [Move(Temp t, Binop Plus (Temp t) (Const wSz))
-			,Move(Temp t, Mem (Temp t)):preSL (d-1)
-			]
+    {-preSL :: Int -> [BExp]
+    preSL 0 = []
+    preSL d = let t = newTemp
+	      in
+                seq [Move(Temp t, Binop Plus (Temp t) (Const wSz))
+		    ,Move(Temp t, Mem (Temp t)):preSL (d-1)
+		    ]
     -}
-
     -- Esta función calcula el Static Link
-    {-   staticL :: Int -> Int ->w BExp
-       staticL x y = Ex(Eseq(preSL(x-y)))
+    {-staticL :: Int -> Int ->w BExp
+    staticL x y = return $ Ex $ Eseq(preSL(x-y))
     -}
-
     -- callExp :: Label -> Bool -> Bool -> Level -> [BExp] -> w BExp
     -- externa marca si la función llamada es del exterior (cualquiera del runtime)
     -- isproc marca si la función no devuelve valor (f: A -> Unit)
-    callExp name external isproc lvl args = undefined
-    {-callExp name external isproc lvl args = P.error "callExp"
-        do
-        cname <- unEx name
-        cargs <- mapM unEx args
-	actual<- getActualLevel
-	sl <- unEx staticL actual lvl
-        if isproc then unitExp
-	return Ex(Eseq(Call(Name cname, sl++cargs)))
-	-}
-
+    {-callExp name external isproc lvl args = do 
+    --callExp name external isproc lvl args = P.error "callExp"
+        	cname <- unEx name
+        	cargs <- mapM unEx args
+		actual<- getActualLevel
+		sl <- unEx staticL actual lvl
+        	if isproc then return unitExp
+		return $ Ex $ Eseq (Call (Name cname, sl++cargs)) Temp rv
+    -}
     -- letExp :: [BExp] -> BExp -> w BExp
     letExp [] e = do -- Puede parecer al dope, pero no...
             e' <- unEx e

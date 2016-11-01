@@ -19,7 +19,7 @@ import Control.Monad
 import Control.Applicative hiding (Const)
 import Data.Either
 import Data.Maybe
-import Data.Foldable
+--import Data.Foldable
 import Data.Monoid
 import Control.Arrow
 import Control.Monad.Except
