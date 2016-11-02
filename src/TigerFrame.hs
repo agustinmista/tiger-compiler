@@ -32,7 +32,7 @@ fpPrev :: Int
 fpPrev = 0
 -- | Offset
 fpPrevLev :: Int
-fpPrevLev = 0
+fpPrevLev = wSz
 
 argsGap = wSz
 localsGap = 4
