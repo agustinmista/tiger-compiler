@@ -142,6 +142,14 @@ staticL caller callee
         return $ Eseq (seq $
             [ Move (Temp t) (Temp fp) ] ++ jumps) (Temp t)  
 
+accumEffects :: (Monad w, TLGenerator w) => ([Exp], [Stm]) -> BExp -> w ([Exp], [Stm])
+accumEffects (tmp, eff) (Ex (Const n)) = return (Const n:tmp, eff)
+accumEffects (tmp, eff) (Ex (Name n))  = return (Name n:tmp, eff)
+accumEffects (tmp, eff) (Ex (Temp n))  = return (Temp n:tmp, eff)
+accumEffects (tmp, eff) h = do
+    t  <- newTemp
+    h' <- unEx h
+    return (Temp t:tmp, (Move (Temp t) h'):eff)
 
 seq :: [Stm] -> Stm
 seq [] = ExpS $ Const 0
@@ -257,21 +265,21 @@ instance (FlorV w) => IrGen w where
                [ ExpS $ externalCall "_allocRecord" scflds
                , Move (Temp t) (Temp rv)
                ]) (Temp t)
-
+    
  
     -- callExp :: Label -> Bool -> Bool -> Level -> [BExp] -> w BExp
     -- externa marca si la función llamada es del exterior (cualquiera del runtime)
     -- isproc marca si la función no devuelve valor (f: A -> Unit)
     -- cuando es externa no hay que pasarle el static link
     callExp name external isproc lvl args = do --ver
-        cargs <- mapM unEx args
         actual <- getActualLevel        
         sl <- staticL actual (getNlvl lvl)
         t <- newTemp
-        let eargs = if external then cargs else [sl] ++ cargs
+        (tmps, effs) <- foldM accumEffects ([],[]) args
+        let eargs = if external then tmps else [sl] ++ tmps
         if isproc 
-            then return $ Nx $ ExpS $ Call (Name name) eargs 
-            else return $ Ex $ Eseq (seq
+            then return $ Nx $ seq (effs ++ [ExpS $ Call (Name name) eargs])
+            else return $ Ex $ Eseq (seq $ effs ++
                     [ ExpS (Call (Name name) eargs)
                     , Move (Temp t) (Temp rv)]) (Temp t)
     
