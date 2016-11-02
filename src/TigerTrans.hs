@@ -123,8 +123,24 @@ class IrGen w where
     binOpStrExp :: BExp -> Abs.Oper -> BExp -> w BExp --Falta completar
     arrayExp :: BExp -> BExp -> w BExp
 
-    --Agregados por Andrea
-    staticL :: Int -> Int ->w BExp
+
+
+-- Esta funcion sirve para calcular los saltos de frames
+preSL :: (Monad w, TLGenerator w)  => Int -> Temp -> w [Stm]
+preSL 0 _ = return [] 
+preSL d t = do 
+        return $ [ Move (Temp t) (Binop Plus (Temp t) (Const fpPrevLev))
+                 , Move (Temp t) (Mem (Temp t)) ]
+
+staticL :: (Monad w, TLGenerator w) => Int -> Int -> w Exp
+staticL caller callee
+    | caller >  callee  = return $ Temp fp
+    | caller == callee  = return $ Mem (Binop Plus (Temp fp) (Const fpPrevLev)) 
+    | otherwise = do
+        t <- newTemp
+        jumps <- preSL (callee - caller) t
+        return $ Eseq (seq $
+            [ Move (Temp t) (Temp fp) ] ++ jumps) (Temp t)  
 
 
 seq :: [Stm] -> Stm
@@ -229,36 +245,36 @@ instance (FlorV w) => IrGen w where
                 (seq    [Move (Temp tvar) evar
                         ,Move (Temp tind) eind
                         ,ExpS $ externalCall "_checkIndex" [Temp tvar, Temp tind]])
-                (Mem $ Binop Plus (Temp tvar) (Binop Mul (Temp tind) (Const wSz)))
-
-    -- recordExp :: [(BExp,Int)]  -> w BExp
-    recordExp flds = P.error "recordExp"
+                (Mem $ Binop Plus (Temp tvar) (Binop Mul (Temp tind) (Const wSz)))   
     
-    -- Esta funcion sirve para calcular los saltos de frames
-    {-preSL :: Int -> [BExp]
-    preSL 0 = []
-    preSL d = let t = newTemp
-	      in
-                seq [Move(Temp t, Binop Plus (Temp t) (Const wSz))
-		    ,Move(Temp t, Mem (Temp t)):preSL (d-1)
-		    ]
-    -}
-    -- Esta función calcula el Static Link
-    {-staticL :: Int -> Int ->w BExp
-    staticL x y = return $ Ex $ Eseq(preSL(x-y))
-    -}
+    -- recordExp :: [(BExp,Int)]  -> w BExp
+    -- pasamos el rv a un temp lo mas rapido posible para que no se pise
+    recordExp flds = do
+        cflds <- mapM (\(e,i) -> unEx e >>= \be -> return (be,i)) flds
+        let scflds = map fst $ sortBy (comparing snd) cflds
+        t <- newTemp
+        return $ Ex $ Eseq (seq
+               [ ExpS $ externalCall "_allocRecord" scflds
+               , Move (Temp t) (Temp rv)
+               ]) (Temp t)
+
+ 
     -- callExp :: Label -> Bool -> Bool -> Level -> [BExp] -> w BExp
     -- externa marca si la función llamada es del exterior (cualquiera del runtime)
     -- isproc marca si la función no devuelve valor (f: A -> Unit)
-    {-callExp name external isproc lvl args = do 
-    --callExp name external isproc lvl args = P.error "callExp"
-        	cname <- unEx name
-        	cargs <- mapM unEx args
-		actual<- getActualLevel
-		sl <- unEx staticL actual lvl
-        	if isproc then return unitExp
-		return $ Ex $ Eseq (Call (Name cname, sl++cargs)) Temp rv
-    -}
+    -- cuando es externa no hay que pasarle el static link
+    callExp name external isproc lvl args = do --ver
+        cargs <- mapM unEx args
+        actual <- getActualLevel        
+        sl <- staticL actual (getNlvl lvl)
+        t <- newTemp
+        let eargs = if external then cargs else [sl] ++ cargs
+        if isproc 
+            then return $ Nx $ ExpS $ Call (Name name) eargs 
+            else return $ Ex $ Eseq (seq
+                    [ ExpS (Call (Name name) eargs)
+                    , Move (Temp t) (Temp rv)]) (Temp t)
+    
     -- letExp :: [BExp] -> BExp -> w BExp
     letExp [] e = do -- Puede parecer al dope, pero no...
             e' <- unEx e
