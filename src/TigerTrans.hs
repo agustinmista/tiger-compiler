@@ -415,14 +415,54 @@ instance (FlorV w) => IrGen w where
             _ -> return $ Nx $ Move cvara cin
 
     -- binOpIntExp :: BExp -> Abs.Oper -> BExp -> w BExp
-    binOpIntExp le op re = P.error "binOpIntExp"
+    binOpIntExp le op re = do 
+        l <- unEx le
+        r <- unEx re
+        let condJmpFunc oper = \(t,f) -> CJump oper l r t f
+            jmpFunc True  =  \(t,_) -> Jump (Name t) t 
+            jmpFunc False =  \(_,f) -> Jump (Name f) f
+        return $ case (l,r,op) of 
+            (Const li, Const ri, Abs.PlusOp)   -> Ex $ Const (li+ri)
+            (Const li, Const ri, Abs.MinusOp)  -> Ex $ Const (li-ri)
+            (Const li, Const ri, Abs.TimesOp)  -> Ex $ Const (li*ri)
+            (Const li, Const ri, Abs.DivideOp) -> Ex $ if ri == 0 then Binop Div l r else Const (div li ri)
+            (Const li, Const ri, Abs.EqOp)  -> Cx $ jmpFunc (li == ri)  -- Esta es una optimizacion
+            (Const li, Const ri, Abs.NeqOp) -> Cx $ jmpFunc (li /= ri)  -- que calcula el salto en tiempo
+            (Const li, Const ri, Abs.LtOp)  -> Cx $ jmpFunc (li <  ri)  -- de compilacion, cuando ambos 
+            (Const li, Const ri, Abs.LeOp)  -> Cx $ jmpFunc (li <= ri)  -- lados de la operacion son constantes
+            (Const li, Const ri, Abs.GtOp)  -> Cx $ jmpFunc (li >  ri)  --
+            (Const li, Const ri, Abs.GeOp)  -> Cx $ jmpFunc (li >= ri)  -- 
+            (_,_,Abs.PlusOp)   -> Ex $ Binop Plus l r
+            (_,_,Abs.MinusOp)  -> Ex $ Binop Minus l r
+            (_,_,Abs.TimesOp)  -> Ex $ Binop Mul l r
+            (_,_,Abs.DivideOp) -> Ex $ Binop Div l r
+            (_,_,Abs.EqOp)     -> Cx $ condJmpFunc EQ
+            (_,_,Abs.NeqOp)    -> Cx $ condJmpFunc NE
+            (_,_,Abs.LtOp)     -> Cx $ condJmpFunc LT
+            (_,_,Abs.LeOp)     -> Cx $ condJmpFunc LE
+            (_,_,Abs.GtOp)     -> Cx $ condJmpFunc GT
+            (_,_,Abs.GeOp)     -> Cx $ condJmpFunc GE
     
     -- binOpIntRelExp :: BExp -> Abs.Oper -> BExp -> w BExp 
-    binOpIntRelExp strl op strr = P.error "binOpIntRelExp"
+    binOpIntRelExp strl op strr = return $ Ex $ Const 0
 
     -- binOpStrExp :: BExp -> Abs.Oper -> BExp -> w BExp
-    binOpStrExp strl op strr = P.error "binOpStrExp"
-
+    binOpStrExp strl op strr = do
+        l <- unEx strl
+        r <- unEx strr
+        t <- newTemp
+        let strCmpExp = Eseq (seq [ ExpS $ externalCall "_stringCompare" [l,r]
+                                  , Move (Temp t) (Temp rv)]) (Temp t) 
+            condJmpFunc oper = \(t,f) -> CJump oper strCmpExp (Const 0) t f
+        case op of
+            Abs.EqOp  -> return $ Cx $ condJmpFunc EQ
+            Abs.NeqOp -> return $ Cx $ condJmpFunc NE
+            Abs.LtOp  -> return $ Cx $ condJmpFunc LT
+            Abs.LeOp  -> return $ Cx $ condJmpFunc LE
+            Abs.GtOp  -> return $ Cx $ condJmpFunc GT
+            Abs.GeOp  -> return $ Cx $ condJmpFunc GE
+            _ -> error $ internal $ T.pack $ "la operacion " ++ show op ++ " no esta permitida para strings"
+    
     -- arrayExp :: BExp -> BExp -> w BExp
     arrayExp size init = do
         sz <- unEx size

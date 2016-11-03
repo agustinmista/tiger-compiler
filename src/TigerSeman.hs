@@ -19,7 +19,7 @@ import Control.Monad
 import Control.Applicative hiding (Const)
 import Data.Either
 import Data.Maybe
---import Data.Foldable
+import Data.Bifunctor
 import Data.Monoid
 import Control.Arrow
 import Control.Monad.Except
@@ -208,10 +208,11 @@ lionConf = G {unique = 0
 type Lion = ST.StateT EstadoG (Either SEErrores)
 
 -- | Ahora puedo poner la monada a trabajar
-runLion :: Exp -> Either SEErrores ([TransFrag],Int,Int)
-runLion e = case ST.runStateT (transExp (LetExp [FunctionDec [(T.pack "_tigermain",[],Just $ T.pack "int",e,Simple 0 0)]] (IntExp 0 (Simple 0 1)) (Simple 0 2))) lionConf of
-                Left x -> Left x
-                Right ((e,_), est) -> Right (fragToList $ fragStack est,utemp est, ulbl est)
+runLion :: Exp -> Either SEErrores ([TransFrag], Int, Int)
+runLion e = bimap id unpackFrags $ ST.runStateT (linkMain e) lionConf 
+                where unpackFrags (_, est) = (fragToList $ fragStack est, utemp est, ulbl est) 
+                      linkMain e = transExp (LetExp [FunctionDec [(T.pack "_tigermain",[],Just $ T.pack "int", e, Simple 0 0)]]
+                                                (IntExp 0 (Simple 0 1)) (Simple 0 2))
 
 -- | Muestro que todo leon tiene genera labels
 instance TLGenerator Lion where

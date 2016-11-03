@@ -13,6 +13,7 @@ import TigerParser
 import TigerEscap
 import TigerPretty
 import TigerSeman
+import TigerTips
 import TigerPrettyIr
 
 import Text.Parsec (runParser)
@@ -123,7 +124,7 @@ printPrettyAst ast = do
 
 printFrags frags = do
     putStrLn "**** generated frags begin ****"
-    putStrLn $ (concatMap show) frags --renderFrag) frags
+    putStrLn $ (concatMap renderFrag) frags
     putStrLn "**** generated frags end ****\n"
 
 printSourceCode src = do
@@ -188,9 +189,9 @@ main = handle printException $ do
     let seman = runLion $ fromRight east 
     when (isLeft seman) (error $ "error semantico\n" ++ show (fromLeft seman))
     
-    let (frags, i1, i2) = fromRight seman
+    let (frags, ut, ul) = fromRight seman
     when (optFgs opts) $ printFrags frags
-
+   
    -- OBcodecanon <- evalStateT (do
    --         frags <- codgenStep (fromJust east) (optIr opts')
    --         canonStep frags (optCanon opts')) initState

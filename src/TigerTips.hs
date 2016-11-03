@@ -18,6 +18,7 @@ data Tipo = TUnit
           | TTipo Text
     deriving Eq
 
+
 instance Show Tipo where
     show TUnit = "()"
     show TNil = "Nil"
