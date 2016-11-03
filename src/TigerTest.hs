@@ -1,4 +1,4 @@
-module TigerTest (runTestDirs, runTest) where
+module TigerTest (runTests) where
 
 import System.Environment
 import System.Directory
@@ -12,12 +12,18 @@ import qualified TigerMain as Tiger
 import System.IO.Unsafe ( unsafeInterleaveIO )
 
 
-runTestDirs :: [String] -> String -> IO ()
-runTestDirs args dir = do
-    tests <- getRecursiveContents dir 
-    res <- mapM (runTest args) (sort tests) 
-    printHeader
-    mapM_ printWithColor res
+runTests :: [String] -> String -> IO ()
+runTests args path = do
+    isFile <- doesFileExist path
+    if isFile 
+        then do
+            res <- runTest args path
+            return () 
+        else do
+            tests <- getRecursiveContents path 
+            res <- mapM (runTest args) (sort tests) 
+            printHeader
+            mapM_ printWithColor res
 
 runTest :: [String] -> String -> IO (String, Int)
 runTest args path = do
