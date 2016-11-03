@@ -23,7 +23,7 @@ prettyExp (Temp l) = text $ makeStringT l
 prettyExp (Binop b l r) = text "BOP" <> prettyBop b $+$ (parens $ prettyExp l) $+$ (parens $ prettyExp r)
 prettyExp (Mem e) = text "M" <> (brackets $ prettyExp e)
 prettyExp (Call e args) = prettyExp e <> (parens $ cat $ punctuate semi (map prettyExp args))
-prettyExp (Eseq s e) = prettyStm s <> semi $+$ prettyExp e
+prettyExp (Eseq s e) = parens $ prettyStm s <> semi $+$ prettyExp e
 
 prettyStm :: Stm -> Doc
 prettyStm (Move e1 e2) = prettyExp e1 <> text "<-" <> prettyExp e2

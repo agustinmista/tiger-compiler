@@ -1,0 +1,15 @@
+/*
+    function call with effectful args
+*/
+
+let 
+    function g () : string = (print("hola"); "chau")
+    function h () : string = (print("CHAU"); "HOLA")
+    function i () : int = 6
+    function f ( a : int , b : string ) : int = 
+        let var b : int := 6
+        in (a + b) * i()
+        end
+in
+   f (2, g())
+end

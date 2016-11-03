@@ -134,22 +134,22 @@ preSL d t = do
 
 staticL :: (Monad w, TLGenerator w) => Int -> Int -> w Exp
 staticL caller callee
-    | caller >  callee  = return $ Temp fp
-    | caller == callee  = return $ Mem (Binop Plus (Temp fp) (Const fpPrevLev)) 
+    | (caller-1) <  callee  = return $ Temp fp
+    | (caller-1)  == callee  = return $ Mem (Binop Plus (Temp fp) (Const fpPrevLev)) 
     | otherwise = do
         t <- newTemp
-        jumps <- preSL (callee - caller) t
+        jumps <- preSL (caller -1 - callee) t
         return $ Eseq (seq $
             [ Move (Temp t) (Temp fp) ] ++ jumps) (Temp t)  
 
 accumEffects :: (Monad w, TLGenerator w) => ([Exp], [Stm]) -> BExp -> w ([Exp], [Stm])
-accumEffects (tmp, eff) (Ex (Const n)) = return (Const n:tmp, eff)
-accumEffects (tmp, eff) (Ex (Name n))  = return (Name n:tmp, eff)
-accumEffects (tmp, eff) (Ex (Temp n))  = return (Temp n:tmp, eff)
+accumEffects (tmp, eff) (Ex (Const n)) = return (tmp ++ [Const n], eff)
+accumEffects (tmp, eff) (Ex (Name n))  = return (tmp ++ [Name n], eff)
+accumEffects (tmp, eff) (Ex (Temp n))  = return (tmp ++ [Temp n], eff)
 accumEffects (tmp, eff) h = do
     t  <- newTemp
     h' <- unEx h
-    return (Temp t:tmp, (Move (Temp t) h'):eff)
+    return (tmp ++ [Temp t], eff ++ [Move (Temp t) h'])
 
 seq :: [Stm] -> Stm
 seq [] = ExpS $ Const 0
@@ -272,7 +272,8 @@ instance (FlorV w) => IrGen w where
     -- isproc marca si la función no devuelve valor (f: A -> Unit)
     -- cuando es externa no hay que pasarle el static link
     callExp name external isproc lvl args = do --ver
-        actual <- getActualLevel        
+        actual <- getActualLevel
+        trace (show actual ++ "-->" ++  show (getNlvl lvl) ++ "(" ++ show name ++ ")") (return ())
         sl <- staticL actual (getNlvl lvl)
         t <- newTemp
         (tmps, effs) <- foldM accumEffects ([],[]) args
