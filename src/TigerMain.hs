@@ -124,7 +124,7 @@ printPrettyAst ast = do
 
 printFrags frags = do
     putStrLn "**** generated frags begin ****"
-    putStrLn $ (concatMap renderFrag) frags
+    putStrLn $ intercalate "\n" $ map renderFrag $ frags
     putStrLn "**** generated frags end ****\n"
 
 printSourceCode src = do
