@@ -39,7 +39,7 @@ localsGap = 4
 
 argsInicial = 0
 regInicial = 1
-localsInicial = 0
+localsInicial = 1 * wSz 
 
 calldefs = [rv]
 specialregs = [rv, fp, sp]

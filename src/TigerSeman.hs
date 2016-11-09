@@ -497,22 +497,27 @@ transDec w@(VarDec s mb Nothing init p) = do
        (cinit, tinit)     <- transExp init
        nlvl               <- getActualLevel
        acc                <- allocLocal (isJust mb) 
- 
        case tinit of 
                 TNil    -> errorTT p (ppD w) "declaracion: se intento asignar Nil a una variable sin signatura de tipo"
                 TInt RO -> insertValV s (TInt RW,acc,nlvl)
                 t       -> insertValV s (t, acc, nlvl)
-       return [cinit]
-
+       vdexp <- varDec acc 
+       vd <- assignExp vdexp cinit
+       return [vd]
+        
 
 transDec w@(VarDec s mb (Just t) init p) = do
-        (cinit, tinit) <- transExp init
-        t' <- addpos (getTipoT t) p (ppD w)
-        C.unlessM (tiposIguales t' tinit) (errorTT p (ppD w) $ "Se esperaba un valor de tipo " ++ show t' ++ " y se tiene un valor de tipo " ++ show tinit)
-        nlvl <- getActualLevel
-        acc <- allocLocal (isJust mb)
-        insertValV s (t',acc, nlvl)
-        return [cinit]
+       (cinit, tinit) <- transExp init
+       t' <- addpos (getTipoT t) p (ppD w)
+       C.unlessM (tiposIguales t' tinit) (errorTT p (ppD w) $ "Se esperaba un valor de tipo " ++ show t' ++ " y se tiene un valor de tipo " ++ show tinit)
+       nlvl <- getActualLevel
+       acc <- allocLocal (isJust mb)
+       insertValV s (t',acc, nlvl)
+       vdexp <- varDec acc 
+       vd <- assignExp vdexp cinit
+       return [vd]
+        
+        
 
 
 

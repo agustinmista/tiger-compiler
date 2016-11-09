@@ -124,23 +124,13 @@ class IrGen w where
     arrayExp :: BExp -> BExp -> w BExp
 
 
-
--- Esta funcion sirve para calcular los saltos de frames
-preSL :: (Monad w, TLGenerator w)  => Int -> Temp -> w [Stm]
-preSL 0 _ = return [] 
-preSL d t = do 
-        return $ [ Move (Temp t) (Binop Plus (Temp t) (Const fpPrevLev))
-                 , Move (Temp t) (Mem (Temp t)) ]
-
+-- Esta funcion sirve para calcular los static links
 staticL :: (Monad w, TLGenerator w) => Int -> Int -> w Exp
 staticL caller callee
     | (caller-1) <  callee  = return $ Temp fp
-    | (caller-1)  == callee  = return $ Mem (Binop Plus (Temp fp) (Const fpPrevLev)) 
-    | otherwise = do
-        t <- newTemp
-        jumps <- preSL (caller -1 - callee) t
-        return $ Eseq (seq $
-            [ Move (Temp t) (Temp fp) ] ++ jumps) (Temp t)  
+    | otherwise = return $ jumps (caller-1-callee)
+            where jumps 0 = Mem (Binop Plus (Temp fp) (Const fpPrevLev)) 
+                  jumps n = Mem (Binop Plus (jumps (n-1)) (Const fpPrevLev))
 
 accumEffects :: (Monad w, TLGenerator w) => ([Exp], [Stm]) -> BExp -> w ([Exp], [Stm])
 accumEffects (tmp, eff) (Ex (Const n)) = return (tmp ++ [Const n], eff)

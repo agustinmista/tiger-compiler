@@ -192,10 +192,9 @@ main = handle printException $ do
     let (frags, ut, ul) = fromRight seman
     when (optFgs opts) $ printFrags frags
    
-   -- OBcodecanon <- evalStateT (do
-   --         frags <- codgenStep (fromJust east) (optIr opts')
-   --         canonStep frags (optCanon opts')) initState
-   -- 
+    --codecanon <- evalStateT (do
+    --        canonStep frags True) initState
+    
     putStrLn "finished"
     return 0
     

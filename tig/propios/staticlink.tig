@@ -1,0 +1,19 @@
+let 
+    function k() : int = 1
+    function f() : int = g()+1
+    function g() : int = 
+        let 
+            var v : int := 5
+            function h() : int =
+              let 
+                function l() : int = v
+              in
+                l() * 2 + k()
+              end
+        in 
+            h() + 7
+        end
+    function j() : int = 3
+in
+    f()
+end
