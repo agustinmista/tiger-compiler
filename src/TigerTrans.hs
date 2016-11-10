@@ -263,7 +263,6 @@ instance (FlorV w) => IrGen w where
     -- cuando es externa no hay que pasarle el static link
     callExp name external isproc lvl args = do --ver
         actual <- getActualLevel
-        trace (show actual ++ "-->" ++  show (getNlvl lvl) ++ "(" ++ show name ++ ")") (return ())
         sl <- staticL actual (getNlvl lvl)
         t <- newTemp
         (tmps, effs) <- foldM accumEffects ([],[]) args

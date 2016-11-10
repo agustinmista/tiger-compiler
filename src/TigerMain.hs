@@ -225,7 +225,7 @@ main = handle printException $ do
     let (frags, ut, ul) = fromRight seman
     when (optFgs opts) $ printFrags frags
    
-    codecanon <- evalStateT (canonStep frags) initState
+    codecanon <- evalStateT (canonStep frags) $ GE ut ul
     when (optCan opts) $ printCanon codecanon 
     
     putStrLn "finished"

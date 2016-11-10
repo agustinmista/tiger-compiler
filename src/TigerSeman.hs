@@ -561,6 +561,8 @@ transDec w@(FunctionDec fb) =
                preFunctionDec nlvl
                setRPoint 
                actualLev <- getActualLevel
+               -- Insertar el argumento implicito del static link
+               allocArg True
                -- Insertamos los argumentos a la tabla de valores
                mapM_ (\((s,vesc,_),t) -> do
                         a <- allocArg (isJust vesc)
