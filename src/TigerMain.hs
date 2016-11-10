@@ -3,6 +3,7 @@ import qualified System.Environment as Env
 import System.Exit
 import System.Console.GetOpt
 import Control.Monad
+import Control.Monad.State.Lazy
 import Data.Maybe
 import Data.List
 import Data.Either hiding (isLeft)
@@ -15,18 +16,48 @@ import TigerPretty
 import TigerSeman
 import TigerTips
 import TigerPrettyIr
+import TigerTrans
+import TigerFrame
+import TigerCanon
+import qualified TigerTree as Tree
 
 import Text.Parsec (runParser)
 import Data.Map.Strict (toList)
 
+data GenEstate = GE {tempseed :: Int, labelseed :: Int}
+type GenSt = StateT GenEstate IO
+
+initState = GE {tempseed = 0, labelseed = 0}
+
+getLabel :: GenSt Int
+getLabel = do
+    st <- get
+    return (labelseed st)
+        
+getTemp :: GenSt Int
+getTemp = do
+    st <- get
+    return (tempseed st)
+                
+setLabel :: Int -> GenSt ()
+setLabel l = do
+    st <- get
+    put $ st{labelseed = l}
+                       
+setTemp:: Int -> GenSt ()
+setTemp t = do
+    st <- get
+    put $ st{tempseed = t}
+
 -- Opciones de compilacion
-data Options = Options {
-        optSrc :: Bool,
-        optAST :: Bool,
-        optPPA :: Bool,
-        optFgs :: Bool,
-        optEsc :: Bool
-    } deriving Show
+data Options = 
+    Options { optSrc :: Bool
+            , optAST :: Bool
+            , optPPA :: Bool
+            , optFgs :: Bool
+            , optEsc :: Bool
+            , optCan :: Bool
+            } deriving Show
 
 -- Opciones de compilación por defecto
 defaultOptions :: Options
@@ -34,7 +65,9 @@ defaultOptions = Options { optSrc = False
                          , optAST = False
                          , optPPA = False
                          , optFgs = False
-                         , optEsc = False }
+                         , optEsc = False 
+                         , optCan = False
+                         }
 
 -- Descriptor de opciones de compilacion
 options :: [OptDescr (Options -> Options)]
@@ -42,6 +75,7 @@ options = [ Option ['i'] ["input"]  (NoArg (\opts -> opts {optSrc = True})) "sho
             Option ['a'] ["ast"]    (NoArg (\opts -> opts {optAST = True})) "show AST after escape analysis",
             Option ['p'] ["pretty"] (NoArg (\opts -> opts {optPPA = True})) "show pretty printed AST after escape analysis",
             Option ['f'] ["frags"]  (NoArg (\opts -> opts {optFgs = True})) "show generated IR fragments",
+            Option ['c'] ["canon"]  (NoArg (\opts -> opts {optCan = True})) "show canonized generated IR fragments",
             Option ['e'] ["escape"] (NoArg (\opts -> opts {optEsc = True})) "show escape analysis step by step"]
 
 -- Parsea los argumentos de linea de comando, devuelve un mensaje de error
@@ -86,25 +120,16 @@ calculoEscapadas rawAST opts =
 --    setTemp temp
 --    return fs
 --
---canonStep' :: [Frag] -> GenSt ([Frag],[([Tree.Stm],Frame)])
---canonStep' xs = do
---    l <- getLabel
---    t <- getTemp
---    let (strs, procs) =  sepFrag xs
---    let (can, t', l') = canon t l procs
---    setLabel l'
---    setTemp t'
---    return (strs, can)
---
---canonStep :: [Frag] -> Bool -> GenSt ([Frag],[([Tree.Stm],Frame)])
---canonStep xs opt = do
---    (strs, procs) <- canonStep' xs
---    when opt ( -- Show Time!
---        lift $ putStrLn "Data Segment:" >>
---        mapM_ (putStrLn . renderFrag) strs >>
---        putStrLn "Code Segment:" >>
---        mapM_ (\(sts,fr) -> putStrLn $ renderPCan sts fr) procs)
---    return (strs,procs)
+canonStep :: [Frag] -> GenSt ([Frag],[([Tree.Stm],Frame)])
+canonStep xs = do
+    l <- getLabel
+    t <- getTemp
+    let (strs, procs) =  sepFrag xs
+    let (can, t', l') = canon t l procs
+    setLabel l'
+    setTemp t'
+    return (strs, can)
+
 
 -- Printers para debug
 printStepper envs = do
@@ -126,6 +151,14 @@ printFrags frags = do
     putStrLn "**** generated frags begin ****"
     putStrLn $ intercalate "\n" $ map renderFrag $ frags
     putStrLn "**** generated frags end ****\n"
+
+printCanon (strs, procs) = do
+    putStrLn "**** generated canon begin ****"
+    putStrLn "Data Segment:"
+    mapM_ (putStrLn . renderFrag) strs
+    putStrLn "Code Segment:"
+    mapM_ (\(sts,fr) -> putStrLn $ renderPCan sts fr) procs
+    putStrLn "**** generated canon end ****\n"
 
 printSourceCode src = do
     let srcLines = lines src
@@ -192,8 +225,8 @@ main = handle printException $ do
     let (frags, ut, ul) = fromRight seman
     when (optFgs opts) $ printFrags frags
    
-    --codecanon <- evalStateT (do
-    --        canonStep frags True) initState
+    codecanon <- evalStateT (canonStep frags) initState
+    when (optCan opts) $ printCanon codecanon 
     
     putStrLn "finished"
     return 0
