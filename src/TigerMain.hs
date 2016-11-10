@@ -157,7 +157,7 @@ printCanon (strs, procs) = do
     putStrLn "Data Segment:"
     mapM_ (putStrLn . renderFrag) strs
     putStrLn "Code Segment:"
-    mapM_ (\(sts,fr) -> putStrLn $ renderPCan sts fr) procs
+    putStrLn $ intercalate "\n\n" $ map (uncurry renderPCan) procs 
     putStrLn "**** generated canon end ****\n"
 
 printSourceCode src = do
