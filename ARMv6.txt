@@ -1,0 +1,52 @@
+
+Registros: 
+    Enteros: 
+        r0~r15 
+    Punto flotante: 
+        s0~s31
+
+Convencion de llamada:
+    
+    r0, r1, r2, r3 argumentos, 
+    el resto a pila
+    
+    r0,r1 registros de retorno
+
+    r14 = lr, guarda la direccion desde
+    donde se llamo a la rutina actual
+
+    r13 = sp
+
+    r12 = ip, usado por el linker para
+    calcular saltos largos
+
+    r0,r1,r2,r3 caller saves
+    r4~r11 callee saves
+
+data ARM 
+    = Inst Instruction
+    | Move Register Register
+
+data Instruction
+    = ADD   -- ADD Rd, Rn, <Operand2>  
+            -- ADD Rd, Rn, #<imm12>
+    | SUB   -- SUB Rd, Rn, <Operand2>
+            -- SUB Rd, Rn, #<imm12>
+    | MUL   -- MUL Rd, Rm, Rs  (Rd=Rm*Rs)
+    | SDIV  -- SDIV Rd, Rn, Rm (Rd=Rn/Rm)
+    | MOV   -- MOV Rd, <Operand2>
+    | CMP   -- CMP Rn, <Operand2> (Rn - Operand2)
+    | AND   -- AND Rd, Rn, <Operand2>
+    | ORR   -- ORR Rd, Rn, <Operand2>
+    | EOR   -- EOR Rd, Rn, <Operand2>
+    | BL    -- BL <label>
+    | STR   -- STR Rd, [Rn {, #<offset>}]
+            -- STR Rd, [Rn, +/-Rm]
+            -- STR Rd, [Rn]
+    | LDR   -- LDR Rd, [Rn, {, #<offset>}]
+            -- LDR Rd, [Rn, +/-Rm]
+            -- LDR Rd, [Rn]
+    | PUSH  -- PUSH <reglist>
+    | POP   -- POP  <reglist>
+
+
