@@ -218,16 +218,19 @@ main = handle printException $ do
     east <- calculoEscapadas (fromRight rawEAST) opts
     when (isLeft east) (error $ "error en el calculo de variables escapadas\n" ++ show (fromLeft east))
     
-    -- Analisis semantico
+    -- Analisis semantico y generacion de IR
     let seman = runLion $ fromRight east 
     when (isLeft seman) (error $ "error semantico\n" ++ show (fromLeft seman))
     
     let (frags, ut, ul) = fromRight seman
     when (optFgs opts) $ printFrags frags
    
+    -- Canonizacion de IR
     codecanon <- evalStateT (canonStep frags) $ GE ut ul
     when (optCan opts) $ printCanon codecanon 
     
+         
+
     putStrLn "finished"
     return 0
     
