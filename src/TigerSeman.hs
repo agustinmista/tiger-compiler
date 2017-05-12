@@ -208,13 +208,20 @@ lionConf = G {unique = 0
 type Lion = ST.StateT EstadoG (Either SEErrores)
 
 -- | Ahora puedo poner la monada a trabajar
-runLion :: Exp -> Either SEErrores ([TransFrag], Int, Int)
+--runLion :: Exp -> Either SEErrores ([TransFrag], Int, Int)
+--runLion e = bimap id unpackFrags $ ST.runStateT (linkMain e) lionConf 
+--                where unpackFrags (_, est) = (fragToList $ fragStack est, utemp est, ulbl est) 
+--                      linkMain e = transExp (LetExp [FunctionDec [(T.pack "_tigermain",[],Just $ T.pack "int", e, Simple 0 0)]]
+--                                                (IntExp 0 (Simple 0 1)) (Simple 0 2))
+
+
+runLion :: Exp -> Either SEErrores ([TransFrag], EstadoG)
 runLion e = bimap id unpackFrags $ ST.runStateT (linkMain e) lionConf 
-                where unpackFrags (_, est) = (fragToList $ fragStack est, utemp est, ulbl est) 
+                where unpackFrags (_, est) = (fragToList (fragStack est), est) 
                       linkMain e = transExp (LetExp [FunctionDec [(T.pack "_tigermain",[],Just $ T.pack "int", e, Simple 0 0)]]
                                                 (IntExp 0 (Simple 0 1)) (Simple 0 2))
 
--- | Muestro que todo leon tiene genera labels
+-- | Muestro que todo leon genera labels
 instance TLGenerator Lion where
     newTemp  = do
         st <- ST.get

@@ -24,30 +24,7 @@ import qualified TigerTree as Tree
 import Text.Parsec (runParser)
 import Data.Map.Strict (toList)
 
-data GenEstate = GE {tempseed :: Int, labelseed :: Int}
-type GenSt = StateT GenEstate IO
 
-initState = GE {tempseed = 0, labelseed = 0}
-
-getLabel :: GenSt Int
-getLabel = do
-    st <- get
-    return (labelseed st)
-        
-getTemp :: GenSt Int
-getTemp = do
-    st <- get
-    return (tempseed st)
-                
-setLabel :: Int -> GenSt ()
-setLabel l = do
-    st <- get
-    put $ st{labelseed = l}
-                       
-setTemp:: Int -> GenSt ()
-setTemp t = do
-    st <- get
-    put $ st{tempseed = t}
 
 -- Opciones de compilacion
 data Options = 
@@ -119,7 +96,35 @@ calculoEscapadas rawAST opts =
 --    setLabel lbl
 --    setTemp temp
 --    return fs
---
+
+data GenEstate = GE {tempseed :: Int, labelseed :: Int}
+type GenSt = StateT GenEstate IO
+
+initState = GE {tempseed = 0, labelseed = 0}
+
+getLabel :: GenSt Int
+getLabel = do
+    st <- get
+    return (labelseed st)
+        
+getTemp :: GenSt Int
+getTemp = do
+    st <- get
+    return (tempseed st)
+                
+setLabel :: Int -> GenSt ()
+setLabel l = do
+    st <- get
+    put $ st{labelseed = l}
+                       
+setTemp :: Int -> GenSt ()
+setTemp t = do
+    st <- get
+    put $ st{tempseed = t}
+
+toGenEstate :: EstadoG -> GenEstate
+toGenEstate est = GE (utemp est) (ulbl est) 
+
 canonStep :: [Frag] -> GenSt ([Frag],[([Tree.Stm],Frame)])
 canonStep xs = do
     l <- getLabel
@@ -162,15 +167,12 @@ printCanon (strs, procs) = do
 
 printSourceCode src = do
     let srcLines = lines src
-        maxWidth = length $ digs $ length srcLines
-        padNumber n = take (maxWidth - (length $ digs n)) [' ', ' '..] ++ show n
+        digits = length . show
+        maxWidth = digits (length srcLines)
+        padNumber n = take (maxWidth - digits n) (repeat ' ') ++ show n
     putStrLn "**** input source code begin ****"
-    putStrLn $ intercalate "\n" $ zipWith (\l t -> padNumber l ++ "|" ++ t) [1..] $ lines src 
+    putStrLn $ unlines $ zipWith (\l t -> padNumber l ++ "|" ++ t) [1..] $ lines src 
     putStrLn "**** input source code end ****\n"
-   
-digs :: Int -> [Int]
-digs 0 = []
-digs x = digs (x `div` 10) ++ [x `mod` 10]  
 
 
 -- Helpers para desempaquetar either
@@ -222,14 +224,12 @@ main = handle printException $ do
     let seman = runLion $ fromRight east 
     when (isLeft seman) (error $ "error semantico\n" ++ show (fromLeft seman))
     
-    let (frags, ut, ul) = fromRight seman
+    let (frags, est) = fromRight seman
     when (optFgs opts) $ printFrags frags
    
     -- Canonizacion de IR
-    codecanon <- evalStateT (canonStep frags) $ GE ut ul
+    codecanon <- evalStateT (canonStep frags) (toGenEstate est)
     when (optCan opts) $ printCanon codecanon 
-    
-         
 
     putStrLn "finished"
     return 0

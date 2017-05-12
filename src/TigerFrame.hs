@@ -60,30 +60,31 @@ sepFrag xs = (reverse ass, reverse stmss)
 instance Show Frag where
     show (Proc s f) = "Frame:" ++ show f ++ '\n': show s
     show (AString l ts) = show l ++ ":\n" ++ (foldr (\t ts -> ("\n\t" ++ T.unpack t) ++ ts) "" ts)
-data Frame = Frame {
-        name :: T.Text,
-        formals :: [Bool], -- los k parametros formales estan escapados?
-        locals :: [Bool],
-        actualArg :: Int,
-        actualLocal :: Int,    
-        actualReg :: Int
-    }
-    deriving Show
+
+data Frame = Frame 
+    { name :: T.Text
+    , formals :: [Bool]
+    , locals :: [Bool]
+    , actualArg :: Int
+    , actualLocal :: Int    
+    , actualReg :: Int
+    } deriving Show
 
 defaultFrame :: Frame
-defaultFrame =  Frame {name = T.empty
-                , formals = []
-                , locals = []
-                , actualArg = argsInicial
-                , actualLocal = localsInicial
-                , actualReg = regInicial}
+defaultFrame =  Frame 
+    { name = T.empty
+    , formals = []
+    , locals = []
+    , actualArg = argsInicial
+    , actualLocal = localsInicial
+    , actualReg = regInicial }
 
 -- TODOS A stack por i386
 prepFormals :: Frame -> [Access]
-prepFormals fs = reverse $  snd (foldl (\ (n,rs) _ -> (n+argsGap, InFrame n : rs) ) (argsInicial,[]) (formals fs))
+prepFormals fs = reverse $ snd (foldl (\ (n,rs) _ -> (n+argsGap, InFrame n : rs) ) (argsInicial,[]) (formals fs))
 
 newFrame :: T.Text -> [Bool] -> Frame
-newFrame nm fs = defaultFrame {name = nm, formals = fs}
+newFrame nm fs = defaultFrame { name = nm, formals = fs }
 
 externalCall :: String -> [Exp] -> Exp
 externalCall s = Call (Name $ T.pack s) 
@@ -92,7 +93,7 @@ allocArg :: (TLGenerator w) => Frame -> Bool -> w (Frame, Access)
 allocArg fr True =   
     let actual = actualArg fr 
         acc = InFrame $ actual + argsGap in
-    return (fr{actualArg = actual +1}, acc)
+    return (fr{actualArg = actual+1}, acc)
 allocArg fr False = do
     s <- newTemp
     return (fr, InReg s)

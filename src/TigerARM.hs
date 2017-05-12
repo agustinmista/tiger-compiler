@@ -1,4 +1,4 @@
-module ARMv6 where
+module TigerARM where
 
 import TigerAbs
 import TigerParser
@@ -15,18 +15,16 @@ import qualified TigerTree as Tree
 
 import qualified Data.Text as T
 
-
-
 type Comment = T.Text
 
 type Instruction = (ARMInst, Maybe Comment)
 
 data ARMInst 
     = MoveInst Temp Temp
-    | ARMInst ARMInst [Temp] [Temp]
     | LabelInst Temp
+    | ARMInst ARMOp [Temp] [Temp]
 
-data ARMInst
+data ARMOp
     = ADD   -- ADD Rd, Rn, <Operand2>  
             -- ADD Rd, Rn, #<imm12>
     | SUB   -- SUB Rd, Rn, <Operand2>
@@ -47,18 +45,3 @@ data ARMInst
             -- LDR Rd, [Rn]
     | PUSH  -- PUSH <reglist>
     | POP   -- POP  <reglist>
-
-
-transStm :: Stm -> [Instruction]
-transStm (Move (Temp src) (Temp dst)) = [(MoveInst src dst, Nothing)]
-transStm (Move exp1 exp2) = []
-transStm (ExpS exp) = transExp exp
-transStm (Jump exp lbl) = [(ARMInst BL [lbl] [], Nothing)]
-transStm (CJump op te fe tlbl flbl) = undefined 
-transStm (Seq s1 s2) = transStm s1 ++ transStm s2
-transStm (Label lbl) = [(LabelInst lbl, Nothing)]
-
-transExp = undefined
-
-
-

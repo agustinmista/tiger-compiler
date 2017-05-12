@@ -30,7 +30,7 @@ prettyStm :: Stm -> Doc
 prettyStm (Move e1 e2) = prettyExp e1 <+> text "<-" <+> prettyExp e2
 prettyStm (ExpS e) = text "Exp" <+> prettyExp e
 prettyStm (Jump e _) = text "Jmp" <+> parens (prettyExp e)
-prettyStm (CJump rel e1 e2 l1 l2) = text "CJump" <> prettyRelop rel $+$ (parens $ prettyExp e1) $+$ (parens $ prettyExp e2) $+$ (text $ makeStringL l1) <+> (text $ makeStringL l2)
+prettyStm (CJump rel e1 e2 l1 l2) = text "CJump" <+> prettyRelop rel $+$ (parens $ prettyExp e1) $+$ (parens $ prettyExp e2) $+$ (text $ makeStringL l1) <+> (text $ makeStringL l2)
 prettyStm (Seq l r) = prettyStm l <> semi $+$ prettyStm r
 prettyStm (Label l) = (text $ makeStringL l) <> text ":"
 
