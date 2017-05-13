@@ -693,7 +693,7 @@ transExp w@(IfExp co th Nothing p) = do
         C.unlessM (tiposIguales co' $ TInt RW) $ errorTT p (ppE w) $ "if: la condicion no es de tipo " ++ show (TInt RW)
         (cth,th') <- transExp th
         C.unlessM (tiposIguales th' TUnit) $ errorTT p (ppE w) $ "if: el cuerpo no es de tipo " ++ show TUnit
-        c <-  ifThenExp cco cth
+        c <- ifThenExp cco cth
         return (c,TUnit) 
 
 transExp w@(IfExp co th (Just el) p) = do 
